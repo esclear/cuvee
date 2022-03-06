@@ -20,6 +20,18 @@ case class C(args: List[Expr], guard: List[Expr], body: Expr) {
     val xs = args.free.toList
     Clause(xs, guard, Eq(App(self, args), body))
   }
+
+  def isRecursive(fun: Fun): Boolean =
+    body uses fun
+
+  override def toString = {
+    if (guard.isEmpty)
+      args.mkString("case ", ", ", "") + "\n  = " + body
+    else
+      args.mkString("case ", ", ", " if ") + guard.mkString(
+        " /\\ "
+      ) + "\n  = " + body
+  }
 }
 
 case class Def(fun: Fun, cases: List[C]) {
@@ -53,6 +65,10 @@ case class Def(fun: Fun, cases: List[C]) {
       val ((d, r), (as, bs, cs)) = Split.split(fun, body)
       Some((args, guard, as, bs, cs, d))
     }
+  }
+
+  override def toString = {
+    fun + cases.mkString("\n", "\n", "")
   }
 }
 

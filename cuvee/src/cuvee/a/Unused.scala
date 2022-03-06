@@ -3,11 +3,39 @@ package cuvee.a
 import cuvee.pure._
 
 object Unused {
+  def main(args: Array[String]) {
+    import Fun._
+
+    val f = Fun("f", List(a, b), List(b, list_a), list_a)
+    val x = Var("x", a)
+    val y = Var("y", b)
+    val xs = Var("xs", list_a)
+
+    val nil_ = Const(nil, list_a)
+
+    val df = Def(
+      f,
+      List(
+        C(List(y, nil_), Nil, nil_),
+        C(List(y, cons(x, xs)), Nil, cons(x, f(y, xs)))
+      )
+    )
+
+    for ((df_, eq) <- unused(df)) {
+      println(df_)
+      println()
+      println(eq)
+    }
+  }
+
   def unused(df: Def): Option[(Def, Rule)] = {
     val Def(f, cases) = df
-    
+
     val is = usedArgs(df)
-    val f_ = Fun(f.name, f.params, is map f.args, f.res)
+
+    val args_ = is map f.args
+    val params_ = f.params filter (_ in args_)
+    val f_ = Fun(f.name + "'", params_, args_, f.res)
 
     if (is.length < f.args.length) {
       val cases_ = for (C(args, guard, body) <- cases) yield {
@@ -29,7 +57,9 @@ object Unused {
     case y: Var => y
 
     case App(Inst(`f`, su), args) =>
-      App(Inst(f_, su), is map args)
+      // get rid of superflous parameters here
+      val su_ = su filter { case (p, t) => f_.params contains p }
+      App(Inst(f_, su_), is map args)
 
     case App(inst, args) =>
       App(inst, args map (keep(f, f_, is, _)))

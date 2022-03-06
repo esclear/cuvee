@@ -3,13 +3,15 @@ package cuvee.a
 import cuvee.error
 import cuvee.pure._
 
-// some ways in which transformations might fail,
-// prompting further investigations
-trait Todo extends Throwable
-case class Fuse(expr: Expr) extends Todo
-case class Norm(fun: Fun) extends Todo
-
 class Lemma(st: State) {
+  val constrs = {
+    for (
+      (_, dt) <- st.datatypes;
+      (c, _) <- dt.constrs
+    )
+      yield c
+  }.toSet
+
   // original functions that are part of the source theory
   // use these preferably during normalization,
   // and use these during lemma generation
@@ -39,6 +41,7 @@ class Lemma(st: State) {
   var promotion: Map[Fun, Rule] = Map()
 
   // discovered lemmas, all in terms of the original functions
+  // note, these may have to be subjected to rewriting
   var lemmas: List[Expr] = Nil
 
   // look at all functions from todo
@@ -106,8 +109,14 @@ class Lemma(st: State) {
   }
 
   def known(df: Def): List[Rule] = {
-    // all flatMap { known(df, _) }
-    ???
+    val eqs =
+      for (
+        (_, dg) <- definitions;
+        eq <- Known.known(df, dg)
+      )
+        yield eq
+
+    eqs.toList
   }
 
   def promote(df: Def): (List[Def], List[Rule]) = {
