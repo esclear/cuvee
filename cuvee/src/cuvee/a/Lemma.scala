@@ -1,7 +1,39 @@
 package cuvee.a
 
 import cuvee.error
+import cuvee.util._
 import cuvee.pure._
+import cuvee.smtlib._
+
+object debug extends Run(Lemma, "examples/debug.smt2")
+
+object _2 extends Run(Lemma, "examples/2.smt2")
+
+object list_defs extends Run(Lemma, "examples/list-defs.smt2")
+
+object Lemma extends Main {
+  def main(args: Array[String]): Unit = {
+    for (file <- args)
+      run(file)
+  }
+
+  def run(file: String) {
+    val (cmds, st) = parse(file)
+
+    for (
+      DeclareDatatypes(arities, dts) <- cmds;
+      ((name, arity), dt) <- arities zip dts
+    ) {
+      st.datatype(name, dt)
+    }
+
+    val lemma = new Lemma(st)
+    lemma.seed(cmds)
+    // lemma.prove(cmds)
+    // println()
+    lemma.dump()
+  }
+}
 
 class Lemma(st: State) {
   val constrs = {
@@ -11,6 +43,8 @@ class Lemma(st: State) {
     )
       yield c
   }.toSet
+
+  // println("contstrs = " + constrs)
 
   // original functions that are part of the source theory
   // use these preferably during normalization,
@@ -33,6 +67,9 @@ class Lemma(st: State) {
   // typically only a single rule per function
   var normalization: Map[Fun, List[Rule]] = Map()
 
+  // fusion rules
+  var fusion: Map[Fun, List[Rule]] = Map()
+
   // reverse normalization rules,
   // which recover expressions in terms of the original definitions
   var recovery: Map[Fun, Rule] = Map()
@@ -44,18 +81,101 @@ class Lemma(st: State) {
   // note, these may have to be subjected to rewriting
   var lemmas: List[Expr] = Nil
 
-  // look at all functions from todo
+  def dump() {
+    // println("definitions:")
+    // for (
+    //   (fun, df) <- definitions;
+    //   rule <- df.rules
+    // )
+    //   println("  " + rule)
+    // println()
+
+    println("fusion rules:")
+    for (
+      (_, rules) <- fusion;
+      rule <- rules
+    ) {
+      val Rule(lhs, rhs, cond, avoid) = rule
+      // println("  " + rule)
+      val rhs_ = Rewrite.rewrite(rhs, normalization)
+      val cond_ = Rewrite.rewrite(cond, normalization)
+      val rule_ = Rule(lhs, rhs_, cond_, avoid)
+      println("  " + rule_)
+    }
+    println()
+
+    println("normalization rules:")
+    for (
+      (_, rules) <- normalization;
+      rule <- rules
+    )
+      println("  " + rule)
+    println()
+  }
+
+  def seed(cmds: List[Cmd]) {
+    val eqs0 =
+      for (
+        Assert(expr) <- cmds;
+        eq <- Def.rw(expr, st)
+      )
+        yield eq
+
+    val eqs1 =
+      for (
+        DefineFun(name, formals, res, body, _) <- cmds;
+        eq <- Def.rw(name, formals, res, body, st)
+      )
+        yield eq
+
+    val eqs = eqs0 ++ eqs1
+
+    val dfs =
+      for ((fun, stuff) <- eqs.groupBy(_._1))
+        yield {
+          val (_, cases) = stuff.unzip
+          Def(fun, cases)
+        }
+
+    for (df <- dfs)
+      fusion += df.fun -> Nil
+
+    val dhs =
+      for (
+        df <- dfs; dg <- dfs;
+        (dh, eq) <- Fuse.fuse(df, dg, constrs)
+      ) yield {
+        fusion += df.fun -> (fusion(df.fun) ++ List(eq))
+        dh
+      }
+
+    todo ++= dfs ++ dhs
+    processAll()
+  }
+
   def processAll() {
+    while (todo.nonEmpty)
+      process()
+  }
+
+  // look at all functions from todo
+  def process() {
     val now = todo
     todo = Nil
 
-    for (df0 <- todo) {
+    for (df0 <- now) {
       val df1 = rewrite(df0)
 
       normalize(df1) match {
         case None =>
           // df1 already in normal form
-          internalize(df1)
+          cleanup(df1) match {
+            case (Nil, Nil) =>
+              internalize(df1)
+            case (aux, eqs) =>
+              todo ++= aux
+              normalization += df1.fun -> eqs
+          }
         case Some((aux, eq)) =>
           todo ++= aux
           normalization += df1.fun -> List(eq)
@@ -67,7 +187,13 @@ class Lemma(st: State) {
   // - None if the definition is already in normal form
   // - Some((defs, eq)) if df can be rewritten, using a *single* rule in terms of the new definitions
   def normalize(df: Def): Option[(List[Def], Rule)] = {
-    ???
+    Hoist.static(df) match {
+      case None =>
+        None
+      case Some((df_, y)) =>
+        // in the future, there will be multiple defs involved (forward args)
+        Some((List(df_), y))
+    }
   }
 
   // apply all rewrites to the body of df
@@ -81,24 +207,27 @@ class Lemma(st: State) {
 
   // df must be normalized and rewritten
   // result indicates whether this definition is kept
-  def internalize(df: Def): Boolean = {
+  def internalize(df: Def) {
     known(df) match {
       case Nil =>
         // no such definition is known yet
+        // println("new definition: " + df.fun)
         definitions += df.fun -> df
-        true
+        normalization += df.fun -> df.rules
 
-      case List(eq) if original contains df.fun =>
-        // for original functions, prefer original version
+      /* case List(eq) if original contains df.fun =>
+        val eq_ = eq.flip
+        // println("known definition: " + eq_.fun)
+        // println("keeping original definition: " + df.fun)
+        // for original functions, prefer original name
         definitions += df.fun -> df
-        definitions -= eq.fun
-        normalization += df.fun -> List(eq.flip)
-        true
+        definitions -= eq_.fun
+        normalization += df.fun -> List(eq_) */
 
       case List(eq) =>
+        // println("known definition: " + df.fun)
         // add the rule that replaces df
         normalization += df.fun -> List(eq)
-        false
 
       case eqs =>
         // a prior opportunity for normalization has not been detected (bug)
@@ -125,7 +254,25 @@ class Lemma(st: State) {
 
   // - remove unused parameters, possibly generating a new definition
   // - recognize identity/constant function
-  def cleanup(df: Def): (List[Def], List[Rule]) = {
-    ???
+  def cleanup(df0: Def): (List[Def], List[Rule]) = {
+    var df = df0
+    var dfs: List[Def] = Nil
+    var eqs: List[Rule] = Nil
+
+    for ((df1, eq) <- Unused.unused(df)) {
+      df = df1 // continue with simplified definition
+      dfs ++= List(df)
+      eqs ++= List(eq)
+    }
+
+    for (eq <- Cleanup.identity(df)) {
+      eqs ++= List(eq)
+    }
+
+    for (eq <- Cleanup.constant(df)) {
+      eqs ++= List(eq)
+    }
+
+    (dfs, eqs)
   }
 }

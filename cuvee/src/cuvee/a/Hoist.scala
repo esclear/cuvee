@@ -32,6 +32,7 @@ object Hoist {
     val Def(f, cases) = df
 
     val static = staticArgs(df)
+    // println("static arguments of " + df.fun.name + " = " + static)
 
     val stuff =
       for (C(args, guard, body) <- cases)

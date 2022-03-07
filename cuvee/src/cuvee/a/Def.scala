@@ -22,7 +22,7 @@ case class C(args: List[Expr], guard: List[Expr], body: Expr) {
   }
 
   def isRecursive(fun: Fun): Boolean =
-    body uses fun
+    fun in body
 
   override def toString = {
     if (guard.isEmpty)
@@ -46,9 +46,11 @@ case class Def(fun: Fun, cases: List[C]) {
     )
   }
 
-  def map(f: C => C): Def = {
+  def rules =
+    cases map (_ rule fun)
+
+  def map(f: C => C): Def =
     Def(fun, cases map f)
-  }
 
   def decl = {
     val Fun(name, Nil, args, res) = fun

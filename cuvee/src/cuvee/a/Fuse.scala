@@ -9,17 +9,19 @@ object Fuse {
 
   def fuse(df: Def, dg: Def, constrs: Set[Fun]): List[(Def, Rule)] = {
     // println("; top-level fusion loop for: " + df.fun.name + " over " + dg.fun.name)
+    // NOTE: isRecursivePosition prevents strange definitions like append_snoc_1
     for (
       (typ, pos) <- df.fun.args.zipWithIndex
-      if typ == dg.fun.res; // && isRecursivePosition(df, pos);
-      df <- fuse(
-        df,
-        dg,
-        pos,
-        constrs
-      ) // TODO: document the purpose of isRecursivePosition
+      if typ == dg.fun.res && isRecursivePosition(df, pos);
+      df <- fuse(df, dg, pos, constrs)
     )
       yield df
+  }
+
+  def isRecursivePosition(df: Def, pos: Int): Boolean = {
+    df.cases exists { case C(args, guard, body) =>
+      args(pos).isInstanceOf[App]
+    }
   }
 
   def fuse(
@@ -96,7 +98,7 @@ object Fuse {
 
       // if the case of g is a tail-recursive call,
       // then wrap it in f which produces fg directly
-      case C(gargs, gguard, App(`g`, grecs)) =>
+      case C(gargs, gguard, App(Inst(`g`, _), grecs)) =>
         val fargs =
           for ((t, i) <- f.args.zipWithIndex)
             yield Var("x", t, Some(i))

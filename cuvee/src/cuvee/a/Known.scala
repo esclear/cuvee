@@ -71,7 +71,11 @@ object Known {
       val _gguard = gguard rename re
 
       val _fbody = fbody rename re
-      val _gbody = gbody rename re
+      val _gbody = gbody rename re bottomup {
+        case App(Inst(`g`, su), args) => App(Inst(`f`, su), args)
+        case e => e
+      }
+
       ok = _fguard == _gguard && _fbody == _gbody
 
       // if(!ok && _fguard != _gguard)

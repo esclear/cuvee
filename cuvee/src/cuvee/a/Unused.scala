@@ -35,7 +35,7 @@ object Unused {
 
     val args_ = is map f.args
     val params_ = f.params filter (_ in args_)
-    val f_ = Fun(f.name + "'", params_, args_, f.res)
+    val f_ = Fun(f.name + "?", params_, args_, f.res)
 
     if (is.length < f.args.length) {
       val cases_ = for (C(args, guard, body) <- cases) yield {
