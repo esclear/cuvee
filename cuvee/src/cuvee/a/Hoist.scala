@@ -34,15 +34,26 @@ object Hoist {
     val static = staticArgs(df)
     // println("static arguments of " + df.fun.name + " = " + static)
 
+    val xs = Expr.vars("x", f.args)
+
     val stuff =
       for (C(args, guard, body) <- cases)
         yield {
+          val re =
+            Expr.subst(
+              for ((a: Var, x) <- args zip xs)
+                yield (a, x)
+            )
+
           val args_ = static map args
-          val xs = args_.free
-          val (guard_, su1) = hoist(guard, xs)
-          val (body_, su2) = hoist(body, xs)
+          val ys = args_.free
+          val (guard_, su1) = hoist(guard, ys)
+          val (body_, su2) = hoist(body, ys)
           val cs_ = C(args, guard_, body_)
-          (cs_, su1 ++ su2)
+          val su_ =
+            for ((x, e) <- su1 ++ su2)
+              yield (x, e rename re)
+          (cs_, su_)
         }
 
     val (cases_, su) = stuff.unzip
@@ -57,7 +68,6 @@ object Hoist {
             C(args ++ zs, guard, extend(f, f_, zs, body))
           }
 
-      val xs = Expr.vars("x", f.args)
       val df_ = Def(f_, cases__)
       val eq = Rule(App(f, xs), App(f_, xs ++ as))
 
@@ -107,12 +117,17 @@ object Hoist {
     val is = 0 until f.args.length
     is.toList.filter { i: Int =>
       cases forall { case C(args, guard, body) =>
-        isStatic(f, i, args(i), body)
+        args(i) match {
+          // ensure that static arguments are are always variables
+          case a: Var => isStatic(f, i, a, body)
+          case _      => false
+        }
+
       }
     }
   }
 
-  def isStatic(f: Fun, i: Int, a: Expr, e: Expr): Boolean = e match {
+  def isStatic(f: Fun, i: Int, a: Var, e: Expr): Boolean = e match {
     case _: Lit => true
     case y: Var => true
 

@@ -38,12 +38,20 @@ object Variant {
     }
   }
 
+  def negated(df: Def): (Def, Rule) = {
+    val Def(f, cases) = df
+    require(f.res == Sort.bool, "cannot generate negated variant, not a predicate")
+    
+    ???
+  }
+
   def restricted(df: Def): List[(Def, Def, Expr)] = {
     val Def(f, cases) = df
     val variants = powerset(cases)
     for ((cases, i) <- variants.zipWithIndex if isUseful(f, cases))
       yield restricted(f, i, cases)
   }
+
 
   def isUseful(f: Fun, cases: List[(Boolean, C)]) = {
     // don't generate variants in the following situations
@@ -64,6 +72,16 @@ object Variant {
     notAll && hasBase && hasRec
   }
 
+  def recurse(f: Fun, p: Fun, expr: Expr): List[Expr] = expr match {
+    case App(Inst(`f`, su), args) =>
+      List(App(Inst(p, su), args))
+    case App(_, args) =>
+      args flatMap (recurse(f, p, _))
+    case _ =>
+      Nil
+  }
+
+
   def restricted(
       f: Fun,
       i: Int,
@@ -73,7 +91,12 @@ object Variant {
     val f_ = Fun(f.name + "$" __ i, f.params, f.args, f.res)
 
     val pcases_ = for ((take, C(args, guard, body)) <- cases) yield {
-      C(args, guard, bool(take))
+      if (take) {
+        val body_ = recurse(f, p_, body)
+        C(args, guard, And(body_))
+      } else {
+        C(args, guard, False)
+      }
     }
 
     val all =
@@ -89,10 +112,16 @@ object Variant {
             i != j && mayOverlap(args, pats)
           }
 
+          val body_ = body bottomup {
+            case App(Inst(`f`, su), args) =>
+              App(Inst(f_, su), args)
+            case e => e
+          }
+
           if (needsGuard)
-            C(args, guard, body)
+            C(args, guard, body_)
           else // we can drop all guards of patterns that have no overlap
-            C(args, Nil, body)
+            C(args, Nil, body_)
         }
 
     val dp_ = Def(p_, pcases_)

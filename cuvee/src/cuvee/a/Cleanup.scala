@@ -6,6 +6,10 @@ object Cleanup {
   def main(args: Array[String]) {
     import Fun._
 
+    val head = Fun("head", List(a), List(list_a), a)
+    val tail = Fun("tail", List(a), List(list_a), list_a)
+    val dt = Datatype(List(a), List((nil, Nil), (cons, List(head, tail))))
+
     val id = Fun("id", List(a), List(list_a), list_a)
     val f = Fun("f", List(a, b), List(list_a, b), b)
     val x = Var("x", a)
@@ -37,9 +41,54 @@ object Cleanup {
     for (eq <- identity(dg)) {
       println(eq)
     }
+
+    val (id_, eq_) = identityFor(list_a, dt)
+    println(id_)
+    println(eq_)
+  }
+
+  def identityFor(typ: Sort, dt: Datatype): (Def, Rule) = {
+    val Datatype(params, constrs) = dt
+    val f = Fun("id_" + typ.con.name, params, List(typ), typ)
+    val su = Type.subst(params, params)
+
+    val cases =
+      for ((constr, sels) <- constrs)
+        yield {
+          val xs = Expr.vars("x", sels map (_.res))
+          val inst = Inst(constr, su)
+          val pat = App(inst, xs)
+          val args =
+            for ((x, s) <- xs zip sels)
+              yield
+                if (s.res == typ)
+                  App(f, List(x))
+                else x
+
+          C(List(pat), Nil, App(inst, args))
+        }
+
+    val df = Def(f, cases)
+
+    Hoist.static(df) match {
+      case None =>
+        val x = Var("x", typ)
+        val eq = Rule(App(f, List(x)), x)
+        (df, eq)
+
+      case Some((df_, eq)) =>
+        val rhs @ App(f_, xs @ (x :: _)) =
+          eq.rhs // assume main argument is the first
+        val eq_ = Rule(rhs, x)
+        (df_, eq_)
+    }
   }
 
   // example: remove when all are taken
+  // BUT: not useful due to normalization, e.g. the identity function is represented as
+  //   id'(nil, y) = y
+  //   id'(cons(x,xs), y) = cons(x, id'(xs, y))
+  // where we do not have a constant in the base case
   def identity(df: Def): Option[Rule] = {
     val Def(f, cases) = df
 

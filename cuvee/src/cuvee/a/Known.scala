@@ -1,5 +1,6 @@
 package cuvee.a
 
+import arse.Control
 import cuvee.pure._
 
 object Known {
@@ -12,9 +13,9 @@ object Known {
   def known(df: Def, dg: Def): Option[Rule] = {
     if (
       df.fun != dg.fun &&
-      df.fun.params == dg.fun.params &&
-      df.fun.args == dg.fun.args &&
-      df.fun.res == dg.fun.res &&
+      // df.fun.params == dg.fun.params &&
+      // df.fun.args == dg.fun.args &&
+      // df.fun.res == dg.fun.res &&
       df.cases.length == dg.cases.length
     ) {
       val Def(f, fcases) =
@@ -42,48 +43,56 @@ object Known {
   }
 
   def ok(f: Fun, cf: C, g: Fun, cg: C): Boolean = {
-    val C(fargs, fguard, fbody) = cf
-    val C(gargs, gguard, gbody) = cg
+    {
+      val su = Type.binds(g.args, g.res, f.args, f.res, Map())
+      println(su)
 
-    var ok = true
-    var re: Map[Var, Var] = Map()
+      val C(fargs, fguard, fbody) = cf
+      val C(gargs, gguard, gbody) = cg inst su
 
-    def rename(a: Expr, b: Expr): Unit = (a, b) match {
-      case (x: Var, y: Var) =>
-        re += (x -> y)
-      case (App(f, as), App(g, bs)) if f == g =>
-        renames(as, bs)
-      case _ =>
-        ok = false
-    }
+      var ok = true
+      var re: Map[Var, Var] = Map()
 
-    def renames(as: List[Expr], bs: List[Expr]): Unit = (as, bs) match {
-      case (Nil, Nil) =>
-      case (a :: as, b :: bs) =>
-        rename(a, b)
-        renames(as, bs)
-    }
-
-    renames(fargs, gargs)
-
-    if (ok) {
-      val _fguard = fguard rename re
-      val _gguard = gguard rename re
-
-      val _fbody = fbody rename re
-      val _gbody = gbody rename re bottomup {
-        case App(Inst(`g`, su), args) => App(Inst(`f`, su), args)
-        case e => e
+      def rename(a: Expr, b: Expr): Unit = (a, b) match {
+        case (x: Var, y: Var) =>
+          re += (x -> y)
+        case (App(Inst(f, fs), as), App(Inst(g, gs), bs)) if f == g =>
+          renames(as, bs)
+        case _ =>
+          ok = false
       }
 
-      ok = _fguard == _gguard && _fbody == _gbody
+      def renames(as: List[Expr], bs: List[Expr]): Unit = (as, bs) match {
+        case (Nil, Nil) =>
+        case (a :: as, b :: bs) =>
+          rename(a, b)
+          renames(as, bs)
+      }
 
-      // if(!ok && _fguard != _gguard)
-      //   println("; guards different: " + _fguard + " and " + _gguard)
-      // if(!ok && _fbody != _gbody)
-      //   println("; bodies different: " + _fbody + " and " + _gbody)
+      renames(fargs, gargs)
+
+      if (ok) {
+        val _fguard = fguard rename re
+        val _gguard = gguard rename re
+
+        val _fbody = fbody rename re bottomup {
+          case App(Inst(`f`, _), args) => App(Inst(`g`, su), args)
+          case e                       => e
+        }
+
+        val _gbody = gbody rename re
+
+        ok = _fguard == _gguard && _fbody == _gbody
+
+        // if(!ok && _fguard != _gguard)
+        //   println("; guards different: " + _fguard + " and " + _gguard)
+        // if(!ok && _fbody != _gbody)
+        //   println("; bodies different: " + _fbody + " and " + _gbody)
+      }
+
+      ok
+    } or {
+      false
     }
-
-    ok
   }
 }

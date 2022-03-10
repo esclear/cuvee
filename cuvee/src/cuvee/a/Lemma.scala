@@ -72,7 +72,7 @@ class Lemma(st: State) {
 
   // reverse normalization rules,
   // which recover expressions in terms of the original definitions
-  var recovery: Map[Fun, Rule] = Map()
+  var recovery: Map[Fun, List[Rule]] = Map()
 
   // promotion rules, these are not necessarily good rewrite rules
   var promotion: Map[Fun, Rule] = Map()
@@ -100,7 +100,16 @@ class Lemma(st: State) {
       val rhs_ = Rewrite.rewrite(rhs, normalization)
       val cond_ = Rewrite.rewrite(cond, normalization)
       val rule_ = Rule(lhs, rhs_, cond_, avoid)
-      println("  " + rule_)
+      println("  " + rule)
+      val reverted =
+        for ((fun, rules) <- normalization) yield {
+          val rules_ =
+            for (rule <- rules if rule.canFlip)
+              yield rule.flip
+          (fun, rules_)
+        }
+      // for(rhs__ <- Rewrite.rewriteAll(rhs_, reverted))
+      // println("  ... = " + rhs__)
     }
     println()
 
@@ -110,6 +119,13 @@ class Lemma(st: State) {
       rule <- rules
     )
       println("  " + rule)
+    println()
+
+    println("lemmas:")
+    for (expr <- lemmas) {
+      val expr_ = Rewrite.rewrite(expr, normalization)
+      println("  " + expr_)
+    }
     println()
   }
 
@@ -137,6 +153,8 @@ class Lemma(st: State) {
           Def(fun, cases)
         }
 
+    todo ++= dfs
+
     for (df <- dfs)
       fusion += df.fun -> Nil
 
@@ -149,7 +167,18 @@ class Lemma(st: State) {
         dh
       }
 
-    todo ++= dfs ++ dhs
+    // todo ++= dhs
+
+    for ((name, dt) <- st.datatypes) {
+      val typ = st.sort(name, dt.params)
+      val (df, eq) = Cleanup.identityFor(typ, dt)
+      normalization += df.fun -> List(eq)
+      definitions += df.fun -> df
+
+      println(df)
+    }
+    println()
+
     processAll()
   }
 
@@ -171,7 +200,17 @@ class Lemma(st: State) {
           // df1 already in normal form
           cleanup(df1) match {
             case (Nil, Nil) =>
-              internalize(df1)
+              val kept = internalize(df1)
+
+              if (kept) {
+                if (df1.fun.res == Sort.bool) {} else {
+                  for ((dp, dg, eq) <- Variant.restricted(df1)) {
+                    lemmas ++= List(eq)
+                    todo ++= List(dp, dg)
+                  }
+                }
+              }
+
             case (aux, eqs) =>
               todo ++= aux
               normalization += df1.fun -> eqs
@@ -207,13 +246,14 @@ class Lemma(st: State) {
 
   // df must be normalized and rewritten
   // result indicates whether this definition is kept
-  def internalize(df: Def) {
+  def internalize(df: Def) = {
     known(df) match {
       case Nil =>
         // no such definition is known yet
         // println("new definition: " + df.fun)
         definitions += df.fun -> df
         normalization += df.fun -> df.rules
+        true
 
       /* case List(eq) if original contains df.fun =>
         val eq_ = eq.flip
@@ -228,6 +268,7 @@ class Lemma(st: State) {
         // println("known definition: " + df.fun)
         // add the rule that replaces df
         normalization += df.fun -> List(eq)
+        false
 
       case eqs =>
         // a prior opportunity for normalization has not been detected (bug)

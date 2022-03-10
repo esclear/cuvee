@@ -12,6 +12,10 @@ case class C(args: List[Expr], guard: List[Expr], body: Expr) {
     C(args rename re, guard rename re, body rename re)
   }
 
+  def inst(su: Map[Param, Type]) = {
+    C(args inst su, guard inst su, body inst su)
+  }
+
   def rule(self: Fun): Rule = {
     Rule(App(self, args), body, And(guard))
   }
@@ -104,6 +108,16 @@ object Def {
         val r = rw(xs, Not(test) :: guard, lhs, right, st)
         l ++ r
 
+      case (App(inst, args), Or(List(test, expr))) => // TODO: generalize
+        val l = rw(xs, test :: guard, lhs, True, st)
+        val r = rw(xs, Not(test) :: guard, lhs, expr, st)
+        l ++ r
+
+      case (App(inst, args), And(List(test, expr))) => // TODO: generalize
+        val l = rw(xs, test :: guard, lhs, expr, st)
+        val r = rw(xs, Not(test) :: guard, lhs, False, st)
+        l ++ r
+
       case (App(inst, args), Match(x: Var, cases, typ)) if xs contains x =>
         for (
           Case(pat, body) <- cases;
@@ -133,6 +147,7 @@ object Def {
     rw(xs, Nil, lhs, body, st)
   }
 
+  // TODO: inefficient?
   def rw(expr: Expr, st: State): List[(Fun, C)] =
     expr match {
       case Clause(xs, ant, Eq(lhs: App, rhs)) =>
