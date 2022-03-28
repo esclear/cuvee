@@ -45,7 +45,7 @@ object Known {
   def ok(f: Fun, cf: C, g: Fun, cg: C): Boolean = {
     {
       val su = Type.binds(g.args, g.res, f.args, f.res, Map())
-      println(su)
+      // println(su)
 
       val C(fargs, fguard, fbody) = cf
       val C(gargs, gguard, gbody) = cg inst su

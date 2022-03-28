@@ -4,12 +4,9 @@ import cuvee.error
 import cuvee.util._
 import cuvee.pure._
 import cuvee.smtlib._
-
-object debug extends Run(Lemma, "examples/debug.smt2")
-
-object _2 extends Run(Lemma, "examples/2.smt2")
-
-object list_defs extends Run(Lemma, "examples/list-defs.smt2")
+import java.io.File
+import java.io.BufferedWriter
+import java.io.FileWriter
 
 object Lemma extends Main {
   def main(args: Array[String]): Unit = {
@@ -89,8 +86,18 @@ class Lemma(st: State) {
     // )
     //   println("  " + rule)
     // println()
+    val candidates = normalization.toList ++ fusion.toList
+    val reverted_ =
+      for (
+        (fun, rules) <- candidates;
+        rule <- rules if rule.canFlip
+      ) yield {
+        rule.flip
+      }
 
-    println("fusion rules:")
+    val reverted = reverted_.groupBy(_.fun)
+
+    /* println("fusion rules:")
     for (
       (_, rules) <- fusion;
       rule <- rules
@@ -101,32 +108,73 @@ class Lemma(st: State) {
       val cond_ = Rewrite.rewrite(cond, normalization)
       val rule_ = Rule(lhs, rhs_, cond_, avoid)
       println("  " + rule)
-      val reverted =
-        for ((fun, rules) <- normalization) yield {
-          val rules_ =
-            for (rule <- rules if rule.canFlip)
-              yield rule.flip
-          (fun, rules_)
-        }
-      // for(rhs__ <- Rewrite.rewriteAll(rhs_, reverted))
-      // println("  ... = " + rhs__)
     }
-    println()
+    // for(rhs__ <- Rewrite.rewriteAll(rhs_, reverted))
+    // println("  ... = " + rhs__)
+    println() */
 
-    println("normalization rules:")
-    for (
-      (_, rules) <- normalization;
-      rule <- rules
-    )
-      println("  " + rule)
-    println()
+    // println("normalization rules:")
+    // for (
+    //   (_, rules) <- normalization;
+    //   rule <- rules
+    // )
+    //   println("  " + rule)
+    // println()
 
-    println("lemmas:")
-    for (expr <- lemmas) {
-      val expr_ = Rewrite.rewrite(expr, normalization)
-      println("  " + expr_)
+    // println("reverted rules:")
+    // for (
+    //   (_, rules) <- reverted;
+    //   rule <- rules
+    // )
+    //   println("  " + rule)
+    // println()
+
+    // println("normalization lemmas")
+    // for (
+    //   (f, rules) <- candidates
+    //   if (original contains f) || (fusion contains f);
+    //   Rule(lhs, rhs, cond, avoid) <- rules
+    // ) {
+    //   val rhs_ = Rewrite.rewrite(rhs, normalization)
+    //   try {
+    //     val results = Rewrite.rewriteAll(rhs_, reverted)
+    //     for (rhs__ <- results.distinct if lhs != rhs__) {
+    //       val rule__ = Rule(lhs, rhs__, cond, avoid)
+    //       println("  " + rule__)
+    //     }
+    //   } catch {
+    //     case _: StackOverflowError =>
+    //       println("  " + lhs + " = ? (stack overflow)")
+    //   }
+    // }
+
+    // println("conditional lemmas:")
+    // for (expr <- lemmas) {
+    //   val expr_ = Rewrite.rewrite(expr, normalization)
+    //   println("  " + expr_)
+    // }
+    // println()
+
+    println("promotion queries:")
+    val dir = new File("queries/")
+    dir.mkdirs()
+
+    for ((f, df) <- definitions) {
+      val (q, df_, eq) = Promote.results(df)
+
+      val file = new File("queries/" + f.name + ".smt2")
+      val wr = new BufferedWriter(new FileWriter(file))
+
+      for (
+        cmd <- q.cmds;
+        line <- cmd.lines
+      ) {
+        wr.write(line)
+        wr.newLine()
+      }
+
+      wr.close()
     }
-    println()
   }
 
   def seed(cmds: List[Cmd]) {
@@ -155,27 +203,27 @@ class Lemma(st: State) {
 
     todo ++= dfs
 
-    for (df <- dfs)
+    for (df <- dfs) {
+      original += df.fun
       fusion += df.fun -> Nil
-
+    }
     val dhs =
       for (
         df <- dfs; dg <- dfs;
         (dh, eq) <- Fuse.fuse(df, dg, constrs)
       ) yield {
+        original += df.fun
         fusion += df.fun -> (fusion(df.fun) ++ List(eq))
         dh
       }
 
-    // todo ++= dhs
+    todo ++= dhs
 
     for ((name, dt) <- st.datatypes) {
       val typ = st.sort(name, dt.params)
       val (df, eq) = Cleanup.identityFor(typ, dt)
       normalization += df.fun -> List(eq)
       definitions += df.fun -> df
-
-      println(df)
     }
     println()
 
@@ -202,7 +250,7 @@ class Lemma(st: State) {
             case (Nil, Nil) =>
               val kept = internalize(df1)
 
-              if (kept) {
+              if (false && kept) {
                 if (df1.fun.res == Sort.bool) {} else {
                   for ((dp, dg, eq) <- Variant.restricted(df1)) {
                     lemmas ++= List(eq)
@@ -294,7 +342,7 @@ class Lemma(st: State) {
   }
 
   // - remove unused parameters, possibly generating a new definition
-  // - recognize identity/constant function
+  // - recognize constant functions
   def cleanup(df0: Def): (List[Def], List[Rule]) = {
     var df = df0
     var dfs: List[Def] = Nil
@@ -306,9 +354,11 @@ class Lemma(st: State) {
       eqs ++= List(eq)
     }
 
-    for (eq <- Cleanup.identity(df)) {
-      eqs ++= List(eq)
-    }
+    // this is done alternatively by including an identity function for each type
+    // which is recognized during internalization
+    // for (eq <- Cleanup.identity(df)) {
+    //   eqs ++= List(eq)
+    // }
 
     for (eq <- Cleanup.constant(df)) {
       eqs ++= List(eq)

@@ -190,7 +190,8 @@ object Fuse {
       // constructor match: we can recurse into the arguments
       // Note: pat should only have constructors in function position
       case (App(inst1, pats), App(inst2, ds)) if constrs contains inst2.fun =>
-        if (inst1 == inst2) {
+        if (inst1.fun == inst2.fun) {
+          require(inst1 == inst2, "not implemented: fusing of polymorphic functions")
           expose(f, g, fg, pats, args, ds, constrs, su)
         } else {
           // println("refute exposing " + pat + " over " + d)

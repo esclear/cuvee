@@ -38,13 +38,13 @@ object Cleanup {
       )
     )
 
-    for (eq <- identity(dg)) {
-      println(eq)
-    }
+    // for (eq <- identity(dg)) {
+    //   println(eq)
+    // }
 
-    val (id_, eq_) = identityFor(list_a, dt)
-    println(id_)
-    println(eq_)
+    // val (id_, eq_) = identityFor(list_a, dt)
+    // println(id_)
+    // println(eq_)
   }
 
   def identityFor(typ: Sort, dt: Datatype): (Def, Rule) = {
@@ -89,7 +89,8 @@ object Cleanup {
   //   id'(nil, y) = y
   //   id'(cons(x,xs), y) = cons(x, id'(xs, y))
   // where we do not have a constant in the base case
-  def identity(df: Def): Option[Rule] = {
+  // NOTE: this is solved now in Known by instantiating the known function with the new one
+  /* def identity(df: Def): Option[Rule] = {
     val Def(f, cases) = df
 
     val ok = cases forall {
@@ -117,7 +118,7 @@ object Cleanup {
     } else {
       None
     }
-  }
+  } */
 
   // remove when none is taken
   // assuming base cases are abstracted by variables already

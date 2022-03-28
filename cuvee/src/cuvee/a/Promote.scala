@@ -2,8 +2,31 @@ package cuvee.a
 
 import cuvee.StringOps
 import cuvee.pure._
+import cuvee.smtlib.DeclareFun
+import cuvee.smtlib.Assert
 
-case class Query(funs: List[Fun], constraints: List[Expr])
+case class Query(funs: List[Fun], constraints: List[Expr]) {
+  override def toString = {
+    funs.mkString("exists\n  ", "  \n", "\n") + constraints.mkString(
+      "where\n  ",
+      "  \n",
+      ""
+    )
+  }
+
+  def cmds = {
+    val decls =
+      for (Fun(name, Nil, args, res) <- funs)
+        yield DeclareFun(name, args, res)
+
+    val conds =
+      for (phi <- constraints)
+        yield Assert(phi)
+
+    decls ++ conds
+  }
+
+}
 
 object Promote {
   def main(args: Array[String]) {
@@ -84,7 +107,7 @@ object Promote {
 
     val typ = f.res
     val params = f.params filter (_ in typ)
-    val ⊕ = Fun("⊕", params, List(typ, typ), typ)
+    val ⊕ = Fun("oplus", params, List(typ, typ), typ)
 
     val z = Var("z", typ)
     val f_ = Fun(f.name + "'", f.params, f.args, f.res)
@@ -97,19 +120,23 @@ object Promote {
     val stuff =
       for ((cs @ C(args, guard, body), i) <- cases.zipWithIndex) yield {
         if (cs.isRecursive(f)) {
-          val xs = free(args)
+
           val (body_, rs) = abstracted(f, body)
           val (ys, es) = rs.unzip
+          val ws = body_.free filterNot ys.contains
+          val vs = guard.free
           val as = ys map { ⊕(_, z) }
           val su = Expr.subst(ys, as)
           val lhs = body_ subst su
 
-          val ts = xs.types ++ ys.types
+          val xs = ws.toList ++ vs.toList
+          val zs = xs ++ ys
+          val ts = zs.types
           val params = f.params filter (_ in ts)
-          val φ = Fun("φ" __ i, params, ts, typ)
-          val rhs = ⊕(App(φ, xs ++ ys), z)
+          val φ = Fun("phi" + i, params, ts, typ)
+          val rhs = ⊕(App(φ, zs), z)
 
-          val cond = Forall(z :: xs ++ ys, lhs === rhs)
+          val cond = Clause(z :: zs, guard, lhs === rhs)
 
           val bs_ = es map { App(f_, _) }
           val φ_ = App(φ, xs ++ bs_)
