@@ -67,16 +67,6 @@ object Promote {
     println(df_)
   }
 
-  def free(expr: Expr): List[Var] = expr match {
-    case l: Lit       => Nil
-    case x: Var       => List(x)
-    case App(_, args) => free(args)
-  }
-
-  def free(exprs: List[Expr]): List[Var] = {
-    exprs flatMap free
-  }
-
   def abstracted(
       f: Fun,
       exprs: List[Expr]
