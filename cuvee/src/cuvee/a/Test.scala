@@ -6,43 +6,57 @@ import cuvee.smtlib._
 
 object debug extends Run(Test, "examples/debug.smt2")
 
-object _0 extends Run(Test, "examples/0.smt2")
-object _1 extends Run(Test, "examples/1.smt2")
-object _2 extends Run(Test, "examples/2.smt2")
-object _7 extends Run(Test, "examples/7.smt2")
+object _0 extends Run(Test, "-fuse", "examples/0.smt2")
+object _1 extends Run(Test, "-fuse", "examples/1.smt2")
+object _2 extends Run(Test, "-fuse", "-variants", "cases", "examples/2.smt2")
+object _7 extends Run(Test, "-fuse", "-variants", "cases", "examples/7.smt2")
+object _8 extends Run(Test, "-fuse", "-variants", "cases", "examples/8.smt2")
 
-object list_defs extends Run(Test, "examples/list-defs.smt2")
+object list_defs extends Run(Test, "-fuse", "-variants", "cases", "examples/list-defs.smt2")
 
 object Test extends Main {
-  val out = log("log.txt")
+  var out = log("log.txt")
 
-  def main(args: Array[String]): Unit = {
-    for (file <- args)
-      run(file)
+  def configure(cfg: Config, args: List[String]): List[String] = args match {
+    case Nil =>
+      Nil
+
+    case "-fuse" :: rest =>
+      cfg.fuse = true
+      configure(cfg, rest)
+
+    case "-variants" :: which :: rest =>
+      cfg.variants += which
+      configure(cfg, rest)
+
+    case "-out" :: "--" :: rest =>
+      out = System.out
+      configure(cfg, rest)
+
+    case "-out" :: file :: rest =>
+      out = log(file)
+      configure(cfg, rest)
+
+    case first :: rest =>
+      first :: configure(cfg, rest)
   }
 
-  def run(file: String) {
-    val (dfs, constrs, st) = read(file)
+  def main(args: Array[String]): Unit = {
+    val cfg = new Config()
+    val files = configure(cfg, args.toList)
 
-    val lemma = new Lemma()
+    for (file <- files) {
+      val (dfs, st) = read(file)
+      val lemma = new Lemma(st, cfg)
 
-    for (df <- dfs) {
-      lemma.addOriginal(df)
+      lemma.addOriginal(dfs)
+      lemma.generateVariants()
+      lemma.generateLemmas()
+
+      dump("lemmas", lemma.lemmas)
+      dump("recovery", lemma.recovery)
+      dump("normalization", lemma.normalization)
     }
-
-    for (
-      df <- dfs; dg <- dfs;
-      (dh, eq) <- Fuse.fuse(df, dg, constrs)
-    ) yield {
-      lemma.addFused(dh, eq)
-    }
-
-    lemma.generateLemmas()
-
-    dump("normalization", lemma.normalization)
-    dump("recovery", lemma.recovery)
-    dump("lemmas", lemma.lemmas)
-    // dump("recognized", lemma.recognized)
   }
 
   def dump(section: String, stuff: List[Any]) {

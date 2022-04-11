@@ -45,7 +45,7 @@ object Variant {
     ???
   }
 
-  def restricted(df: Def): List[(Def, Def, Expr)] = {
+  def restricted(df: Def): List[(Def, Def, Rule)] = {
     val Def(f, cases) = df
     val variants = powerset(cases)
     for ((cases, i) <- variants.zipWithIndex if isUseful(f, cases))
@@ -86,7 +86,7 @@ object Variant {
       f: Fun,
       i: Int,
       cases: List[(Boolean, C)]
-  ): (Def, Def, Expr) = {
+  ): (Def, Def, Rule) = {
     val p_ = Fun(f.name + "_pre" __ i, f.params, f.args, Sort.bool)
     val f_ = Fun(f.name + "$" __ i, f.params, f.args, f.res)
 
@@ -128,7 +128,7 @@ object Variant {
     val df_ = Def(f_, fcases_)
 
     val xs = Expr.vars("x", f.args)
-    val eq = Forall(xs, Imp(App(p_, xs), Eq(App(f, xs), App(f_, xs))))
+    val eq = Rule(App(f, xs), App(f_, xs), App(p_, xs))
 
     (dp_, df_, eq)
   }

@@ -5,7 +5,9 @@ import cuvee.pure._
 import cuvee.smtlib.DeclareFun
 import cuvee.smtlib.Assert
 
-case class Query(funs: List[Fun], constraints: List[Expr]) {
+case class Query(typ: Type, funs: List[Fun], base: Expr, conds: List[Expr]) {
+  def constraints = base :: conds
+
   override def toString = {
     funs.mkString("exists\n  ", "  \n", "\n") + constraints.mkString(
       "where\n  ",
@@ -54,12 +56,12 @@ object Promote {
     println(df)
     println()
 
-    val (Query(funs, constraints), df_, eq) = results(df)
+    val (q, df_, eq) = results(df)
     println("exists")
-    for (f <- funs)
+    for (f <- q.funs)
       println("  " + f)
     println("where")
-    for (c <- constraints)
+    for (c <- q.constraints)
       println("  " + c)
     println("such that")
     println("  " + eq)
@@ -143,10 +145,41 @@ object Promote {
     val conds = conds_.flatten
 
     val xs = Expr.vars("x", f.args)
-    val q = Query(b :: ⊕ :: φs, base :: conds)
+    val q = Query(typ, b :: ⊕ :: φs, base, conds)
     val eq = Rule(App(f, xs), ⊕(App(f_, xs), b_))
 
     val df_ = Def(f_, cases_)
     (q, df_, eq)
+  }
+
+  def arithmetic(q: Query) = q match {
+    case Query(
+          Sort.int,
+          List(b0, f0, g0),
+          Clause(fs, Nil, Eq(w, App(f, List(App(b, Nil), w_)))),
+          List(
+            Clause(
+              fs_,
+              Nil,
+              Eq(
+                Plus(List(x_, App(f_, List(y_, z_)))),
+                App(f__, List(App(g_, List(x__, y__)), z__))
+              )
+            )
+          )
+        )
+        if b0 == b.fun && f0 == f.fun && g0 == g_.fun && w == w_ && f == f_ && f_ == f__ && x_ == x__ && y_ == y__ && z_ == z__ =>
+
+      val xs = Expr.vars("x", f0.args)
+      val ys = Expr.vars("y", g0.args)
+
+      val eq1 = Rule(Const(b0, Sort.int), Zero)
+      val eq2 = Rule(App(f0, xs), Plus(xs))
+      val eq3 = Rule(App(g0, ys), Plus(ys))
+
+      Some(List(eq1, eq2, eq3))
+
+    case _ =>
+      None
   }
 }

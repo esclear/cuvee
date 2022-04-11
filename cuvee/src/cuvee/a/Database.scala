@@ -22,7 +22,7 @@ class Database {
   // and adding constant/identity lemmas if needed
   // if keep is true then prefer the function of df one over existing defs
   // it is generally assumed that this function has been hoisted
-  def internalize(df: Def, keep: Boolean) {
+  def internalize(df: Def, keep: Boolean) = {
     val f = df.fun
 
     for (eq <- _known(df, definitions)) {
@@ -40,6 +40,9 @@ class Database {
     if (!replaced(f)) {
       definitions = df :: definitions
       normalization = df.rules ++ normalization
+      true
+    } else {
+      false
     }
   }
 
@@ -115,11 +118,23 @@ class Database {
   }
 
   // find equivalence class of e
-  def recover(e: Expr): List[Expr] = {
+  def recover(e: Expr, verbose: Boolean = false): List[Expr] = {
     val rws1 = normalization.groupBy(_.fun)
     val rws2 = recovery.groupBy(_.fun)
     val e_ = Rewrite.rewrite(e, rws1)
-    Rewrite.rewriteAll(e_, rws2)
+    val es = Rewrite.rewriteAll(e_, rws2)
+    if(verbose)
+      println("recover " + e + " from " + e_ + " = " + es.mkString(" "))
+
+    es
+  }
+
+  // find equivalence class of r
+  def recover(r: Rule): List[Rule] = {
+    val rws1 = normalization.groupBy(_.fun)
+    val rws2 = recovery.groupBy(_.fun)
+    val r_ = Rewrite.rewrite(r, rws1)
+    Rewrite.rewriteAll(r_, rws2)
   }
 
   def _known(df: Def, defs: List[Def]) = {

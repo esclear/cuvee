@@ -7,7 +7,7 @@ import java.io.PrintStream
 import java.io.FileOutputStream
 
 package object a {
-  def read(file: String): (List[Def], Set[Fun], State) = {
+  def read(file: String): (List[Def], State) = {
     val (cmds, st) = parse(file)
 
     for (
@@ -40,15 +40,7 @@ package object a {
           Def(fun, cases)
         }
 
-    val constrs = {
-      for (
-        (_, dt) <- st.datatypes;
-        (c, _) <- dt.constrs
-      )
-        yield c
-    }
-
-    (dfs.toList, constrs.toSet, st)
+    (dfs.toList, st)
   }
 
   def log(file: String) = {
