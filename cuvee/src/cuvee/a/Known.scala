@@ -2,18 +2,58 @@ package cuvee.a
 
 import arse.Control
 import cuvee.pure._
+import cuvee.backtrack
 
 object Known {
-  // Note: do not try to specialize known definitions,
-  //       this is done via factoring
-  // def known(df: Def, all: Iterable[Def]): List[Rule] = {
-  //   all flatMap { known(df, _) }
-  // }
+  def main(args: Array[String]) {}
 
+  def key(f: Fun)(c: C) = c match {
+    case C(_, _, App(inst, args)) if inst.fun == f =>
+      None // tail-recursive calls: delay matching
+
+    case C(_, _, x: Var)          => None
+    case C(_, _, App(inst, args)) => Some(inst.fun)
+  }
+
+  def prio(a: Option[Fun], b: Option[Fun]) = (a, b) match {
+    case (None, None)       => true // stable
+    case (None, Some(_))    => false
+    case (Some(_), None)    => true
+    case (Some(a), Some(b)) => a.name < b.name
+  }
+
+  def bind(
+      cf: List[
+        (C, Int)
+      ], // the numbers are the ordering of cases in the definition
+      cg: List[(C, Int)],
+      p: List[Int],
+      ty: Map[Param, Type],
+      su: Map[Var, Expr] = Map()
+  ) = {}
+
+  def check(
+      cases: List[(List[(C, Int)], List[(C, Int)])],
+      p: List[Int] = Nil, // permutation that reorders function arguments
+      ty: Map[Param, Type] = Map() // typing applies to the entire function
+  ): List[(List[Int], Map[Param, Type])] =
+    cases match {
+      case Nil =>
+        List((p, ty))
+
+      case (fs, gs) :: rest if fs.length != gs.length =>
+        Nil
+
+      case (fs, gs) :: rest =>
+        check(rest)
+    }
+
+  // dg is known already and we want to check whether df matches
   def known(df: Def, dg: Def): Option[Rule] = {
     if (
       df.fun != dg.fun &&
-      // df.fun.params == dg.fun.params &&
+      df.fun.args.length == dg.fun.args.length &&
+      // df.fun.args == dg.fun.args &&arams &&
       // df.fun.args == dg.fun.args &&
       // df.fun.res == dg.fun.res &&
       df.cases.length == dg.cases.length
@@ -21,6 +61,10 @@ object Known {
       val Def(f, fcases) =
         df // Check: can we guarantee order via fuse/factoring maintained?
       val Def(g, gcases) = dg
+
+      // println(df.fun.name + "#" + Def.hash(df) + " ?= " + dg.fun.name + "#" + Def.hash(dg))
+      // val x = cuvee.keyedPairings(fcases, gcases, key(f), key(g), prio)
+      // val y = check(x)
 
       val ok_ =
         (fcases zip gcases) forall { case (cf, cg) =>

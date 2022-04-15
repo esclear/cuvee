@@ -3,6 +3,9 @@ package cuvee.a
 import cuvee.util._
 import cuvee.pure._
 import cuvee.smtlib._
+import java.io.File
+import java.io.PrintStream
+import cuvee.sexpr.Syntax
 
 object debug extends Run(Test, "examples/debug.smt2")
 
@@ -12,7 +15,8 @@ object _2 extends Run(Test, "-fuse", "-variants", "cases", "examples/2.smt2")
 object _7 extends Run(Test, "-fuse", "-variants", "cases", "examples/7.smt2")
 object _8 extends Run(Test, "-fuse", "-variants", "cases", "examples/8.smt2")
 
-object list_defs extends Run(Test, "-fuse", "-variants", "cases", "examples/list-defs.smt2")
+object list_defs
+    extends Run(Test, "-fuse", "-variants", "cases", "examples/list-defs.smt2")
 
 object Test extends Main {
   var out = log("log.txt")
@@ -46,20 +50,74 @@ object Test extends Main {
     val files = configure(cfg, args.toList)
 
     for (file <- files) {
-      val (dfs, st) = read(file)
+      val (dfs, cmds, st) = read(file)
       val lemma = new Lemma(st, cfg)
 
+      println("normalizing definitions...")
       lemma.addOriginal(dfs)
+
+      println("collecting promotion queries...")
+      lemma.generatePromotions()
+
+      println("generating variants...")
       lemma.generateVariants()
+
+      println("synthesing lemmas...")
       lemma.generateLemmas()
 
-      dump("lemmas", lemma.lemmas)
-      dump("recovery", lemma.recovery)
-      dump("normalization", lemma.normalization)
+      dump(out, "lemmas", lemma.lemmas)
+      dump(out, "recovery", lemma.recovery)
+      dump(out, "normalization", lemma.normalization)
+
+      val dir = new File("queries/")
+      dir.mkdirs()
+
+      for ((g, q, dg, eqs) <- lemma.promotion) {
+        println("  " + g)
+        
+        val out = log("queries/" + g.name + ".smt2")
+
+        for (cmd @ DeclareSort(_, _) <- cmds) {
+          dump(out, cmd)
+        }
+
+        for (cmd @ DeclareDatatypes(_, _) <- cmds) {
+          dump(out, cmd)
+        }
+
+        for (df <- lemma.definitions) {
+          for (cmd <- df.cmds)
+            dump(out, cmd)
+        }
+
+        out.println("; auxiliary definition")
+
+        for (cmd <- dg.cmds)
+          dump(out, cmd, comment = true)
+
+        out.println("; promotion lemmas")
+
+        for (eq <- eqs)
+          dump(out, eq.cmd, comment = true)
+
+        for (cmd <- q.cmds)
+          dump(out, cmd)
+
+        out.close()
+      }
     }
   }
 
-  def dump(section: String, stuff: List[Any]) {
+  def dump(out: PrintStream, syntax: Syntax, comment: Boolean = false) {
+    for (line <- syntax.lines) {
+      if (comment)
+        out.print("; ")
+      out.println(line)
+    }
+    out.println()
+  }
+
+  def dump(out: PrintStream, section: String, stuff: List[Any]) {
     out.println(section)
     for (item <- stuff)
       out.println("  " + item)

@@ -56,6 +56,9 @@ case class Def(fun: Fun, cases: List[C]) {
   def map(f: C => C): Def =
     Def(fun, cases map f)
 
+  def cmds =
+    decl :: axioms
+
   def decl = {
     val Fun(name, Nil, args, res) = fun
     DeclareFun(name, args, res)
@@ -172,5 +175,39 @@ object Def {
       rule <- rw(expr, st)
     )
       yield rule
+  }
+
+  import scala.util.hashing.MurmurHash3
+  val varSeed = "Var".hashCode
+
+  // weak hash function that captures the structure
+  // but not the actual computation
+  // it forgets variable names,
+  // function name and order of arguments for recursive calls,
+  // as well as all type instances
+  def hash(f: Fun, e: Expr): Int = e match {
+    case x: Var =>
+      varSeed
+    case App(Inst(`f`, _), args) =>
+      MurmurHash3.unorderedHash(hash(f, args))
+    case App(Inst(g, _), args) =>
+      MurmurHash3.orderedHash(hash(f, args), g.name.hashCode())
+  }
+
+  def hash(f: Fun, es: List[Expr]): List[Int] = {
+    es map (hash(f, _))
+  }
+
+  def hash(f: Fun, c: C): Int = c match {
+    case C(args, guard, body) =>
+      val h1 = hash(f, body)
+      val h2 = MurmurHash3.unorderedHash(hash(f, args), h1)
+      val h3 = MurmurHash3.unorderedHash(hash(f, guard), h2)
+      h3
+  }
+
+  def hash(df: Def): Int = df match {
+    case Def(f, cases) =>
+      MurmurHash3.unorderedHash(cases map (hash(f, _)))
   }
 }

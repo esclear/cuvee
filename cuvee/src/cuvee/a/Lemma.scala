@@ -10,6 +10,7 @@ class Config {
 class Lemma(st: State, cfg: Config) extends Database {
 
   var lemmas: List[Rule] = Nil
+  var promotion: List[(Fun, Query, Def, List[Rule])] = Nil
 
   var formulas: List[(Expr, Expr, Expr)] = Nil
   var equations: List[(Expr, Expr)] = Nil
@@ -50,10 +51,10 @@ class Lemma(st: State, cfg: Config) extends Database {
     // currently this generates a lemma of the form:
     // length'(x₀, x₁, x₂) = (length''(x₀, x₁, x₂) + 0)
     // which does not put 0 into the correct *argument* in the rec. call
-    return
+    for ((q, df_, eqs) <- Promote.results(df))
+      promotion = (df.fun, q, df_, eqs) :: promotion
 
-    val (q, df_, eq) = Promote.results(df)
-    Promote.arithmetic(q) match {
+    /* Promote.arithmetic(q) match {
       case Some(res) =>
         val rws = res.groupBy(_.fun)
 
@@ -74,7 +75,7 @@ class Lemma(st: State, cfg: Config) extends Database {
       // rewriteBy(eq_)
 
       case None =>
-    }
+    } */
   }
 
   def variants_(df: Def) {
@@ -89,10 +90,15 @@ class Lemma(st: State, cfg: Config) extends Database {
   }
 
   def generateVariants() {
-    // promote_(df)
     val todo = definitions
-    for(df <- todo)
+    for (df <- todo)
       variants_(df)
+  }
+
+  def generatePromotions() {
+    val todo = definitions
+    for (df <- todo)
+      promote_(df)
   }
 
   def generateLemmas() {
@@ -108,7 +114,7 @@ class Lemma(st: State, cfg: Config) extends Database {
 
     for (
       (lhs, rhs, cond) <- formulas;
-      lhs_ <- recover(lhs, true);
+      lhs_ <- recover(lhs);
       rhs_ <- recover(rhs);
       cond_ <- recover(cond)
     ) {
