@@ -174,7 +174,8 @@ object Promote {
         for (i <- indices)
           yield {
             val ys = xs updated (i, b_)
-            Rule(App(f, xs), ⊕(App(f_, ys), xs(i)))
+            val xi = xs(i)
+            Rule(App(f, xs), ⊕(App(f_, ys), xi), True, List(xi -> b_))
           }
 
       (q, df_, eqs)

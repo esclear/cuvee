@@ -11,11 +11,16 @@ object debug extends Run(Test, "examples/debug.smt2")
 
 object _0 extends Run(Test, "-fuse", "examples/0.smt2")
 object _1 extends Run(Test, "-fuse", "examples/1.smt2")
-object _2 extends Run(Test, "-fuse", "-variants", "cases", "examples/2.smt2")
+object _2 extends Run(Test, "-fuse", "examples/2.smt2")
+object _2_variants extends Run(Test, "-fuse", "-variants", "cases", "examples/2.smt2")
 object _7 extends Run(Test, "-fuse", "-variants", "cases", "examples/7.smt2")
 object _8 extends Run(Test, "-fuse", "-variants", "cases", "examples/8.smt2")
 
+
 object list_defs
+    extends Run(Test, "-fuse", "examples/list-defs.smt2")
+
+object list_defs_variants
     extends Run(Test, "-fuse", "-variants", "cases", "examples/list-defs.smt2")
 
 object Test extends Main {
@@ -62,19 +67,21 @@ object Test extends Main {
       println("generating variants...")
       lemma.generateVariants()
 
-      println("synthesing lemmas...")
+      println("synthesizing lemmas...")
       lemma.generateLemmas()
 
       dump(out, "lemmas", lemma.lemmas)
       dump(out, "recovery", lemma.recovery)
       dump(out, "normalization", lemma.normalization)
 
+      println("dumping queries...")
+
       val dir = new File("queries/")
       dir.mkdirs()
 
       for ((g, q, dg, eqs) <- lemma.promotion) {
         println("  " + g)
-        
+
         val out = log("queries/" + g.name + ".smt2")
 
         for (cmd @ DeclareSort(_, _) <- cmds) {

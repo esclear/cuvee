@@ -1,6 +1,7 @@
 package cuvee.a
 
 import cuvee.pure._
+import java.io.PrintStream
 
 class Config {
   var fuse = false
@@ -18,7 +19,7 @@ class Lemma(st: State, cfg: Config) extends Database {
   def normalize_(df: Def, root: Boolean) {
     Hoist.static(df) match {
       case None =>
-        unused_(df, true)
+        unused_(df, root)
       case Some((df_, eq)) =>
         if (root)
           equations = (eq.lhs, eq.lhs) :: equations
@@ -41,6 +42,7 @@ class Lemma(st: State, cfg: Config) extends Database {
   def constant_(df: Def, keep: Boolean) {
     Cleanup.constant(df) match {
       case None =>
+        // println("  internalize: " + df.fun + " (keep = "  + keep + ")")
         internalize(df, keep)
       case Some(eq) =>
         replaceBy(eq)
@@ -51,31 +53,37 @@ class Lemma(st: State, cfg: Config) extends Database {
     // currently this generates a lemma of the form:
     // length'(x₀, x₁, x₂) = (length''(x₀, x₁, x₂) + 0)
     // which does not put 0 into the correct *argument* in the rec. call
-    for ((q, df_, eqs) <- Promote.results(df))
+    for ((q, df_, eqs) <- Promote.results(df)) {
       promotion = (df.fun, q, df_, eqs) :: promotion
 
-    /* Promote.arithmetic(q) match {
-      case Some(res) =>
-        val rws = res.groupBy(_.fun)
+      Promote.arithmetic(q) match {
+        case Some(res) =>
+          val rws = res.groupBy(_.fun)
 
-        val Def(f_, cs) = df_
-        val cs_ =
-          for (C(args, guard, body) <- cs)
-            yield {
-              val args_ = Rewrite.rewrites(args, rws)
-              val guard_ = Rewrite.rewrites(guard, rws)
-              val body_ = Rewrite.rewrite(body, rws)
-              C(args_, guard_, body_)
-            }
+          val Def(f_, cs) = df_
+          val cs_ =
+            for (C(args, guard, body) <- cs)
+              yield {
+                val args_ = Rewrite.rewrites(args, rws)
+                val guard_ = Rewrite.rewrites(guard, rws)
+                val body_ = Rewrite.rewrite(body, rws)
+                C(args_, guard_, body_)
+              }
 
-        val df__ = Def(f_, cs_)
-        val eq_ = Rewrite.rewrite(eq, rws)
-        println(eq_)
-        normalize_(df__, false)
-      // rewriteBy(eq_)
+          val df__ = Def(f_, cs_)
+          normalize_(df__, false)
 
-      case None =>
-    } */
+          for (eq <- eqs) {
+            // println("  " + eq)
+            val eq_ = Rewrite.rewrite(eq, rws)
+            // println("  " + eq_ + " (after normalizing)")
+            // unfoldOnceBy(eq_)
+            rewriteBy(eq_)
+          }
+
+        case None =>
+      }
+    }
   }
 
   def variants_(df: Def) {
@@ -108,6 +116,7 @@ class Lemma(st: State, cfg: Config) extends Database {
     ) {
       if (lhs != rhs_) {
         val eq = Rule(lhs, rhs_)
+        // println("  " + eq.fun)
         lemmas = eq :: lemmas
       }
     }
@@ -119,6 +128,7 @@ class Lemma(st: State, cfg: Config) extends Database {
       cond_ <- recover(cond)
     ) {
       val eq = Rule(lhs_, rhs_, cond_)
+      // println("  " + eq.fun)
       lemmas = eq :: lemmas
     }
   }

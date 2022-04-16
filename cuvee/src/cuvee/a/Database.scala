@@ -9,6 +9,7 @@ class Database {
   var definitions: List[Def] = Nil
   var normalization: List[Rule] = Nil
   var recovery: List[Rule] = Nil
+  var unfoldOnce: List[Rule] = Nil
 
 //   var recognized: List[(String, String)] = Nil
 
@@ -40,6 +41,7 @@ class Database {
     if (!replaced(f)) {
       definitions = df :: definitions
       normalization = df.rules ++ normalization
+      // println("  keeping " + f)
       true
     } else {
       false
@@ -69,6 +71,10 @@ class Database {
     normalization = eq :: normalization
   }
 
+  def unfoldOnceBy(eq: Rule) {
+    unfoldOnce = eq :: unfoldOnce
+  }
+
   // add a recovery rule, e.g. from fusion
   def recoverBy(eq: Rule) {
     require(eq.canFlip, "recovery by, but cannot flip rule: " + eq)
@@ -84,6 +90,7 @@ class Database {
     // require(eq.canFlip, "replacing, but cannot flip rule: " + eq)
     replaced += f
     remove(f)
+    // println("  replacing " + f)
     normalization = eq :: normalization
   }
 
@@ -118,23 +125,29 @@ class Database {
   }
 
   // find equivalence class of e
-  def recover(e: Expr, verbose: Boolean = false): List[Expr] = {
+  def recover(e0: Expr, verbose: Boolean = false): List[Expr] = {
     val rws1 = normalization.groupBy(_.fun)
-    val rws2 = recovery.groupBy(_.fun)
-    val e_ = Rewrite.rewrite(e, rws1)
-    val es = Rewrite.rewriteAll(e_, rws2)
-    if(verbose)
-      println("recover " + e + " from " + e_ + " = " + es.mkString(" "))
-
-    es
+    val rws2 = unfoldOnce.groupBy(_.fun) // assume these are not cyclic!
+    val rws3 = recovery.groupBy(_.fun)
+    // println("  0. " + e0)
+    val e1 = Rewrite.rewrite(e0, rws1)
+    // println("  1. " + e1)
+    val e2 = Rewrite.rewrite(e1, rws2)
+    // println("  2. " + e2)
+    val es3 = Rewrite.rewriteAll(e2, rws3)
+    println()
+    es3
   }
 
   // find equivalence class of r
-  def recover(r: Rule): List[Rule] = {
+  def recover(r0: Rule): List[Rule] = {
     val rws1 = normalization.groupBy(_.fun)
-    val rws2 = recovery.groupBy(_.fun)
-    val r_ = Rewrite.rewrite(r, rws1)
-    Rewrite.rewriteAll(r_, rws2)
+    val rws2 = unfoldOnce.groupBy(_.fun) // assume these are not cyclic!
+    val rws3 = recovery.groupBy(_.fun)
+    val r1 = Rewrite.rewrite(r0, rws1)
+    val r2 = Rewrite.rewrite(r1, rws2)
+    val rs3 = Rewrite.rewriteAll(r2, rws3)
+    rs3
   }
 
   def _known(df: Def, defs: List[Def]) = {
