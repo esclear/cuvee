@@ -127,14 +127,14 @@ class Database {
   // find equivalence class of e
   def recover(e0: Expr, verbose: Boolean = false): List[Expr] = {
     val rws1 = normalization.groupBy(_.fun)
-    val rws2 = unfoldOnce.groupBy(_.fun) // assume these are not cyclic!
+    // val rws2 = unfoldOnce.groupBy(_.fun) // assume these are not cyclic!
     val rws3 = recovery.groupBy(_.fun)
     // println("  0. " + e0)
     val e1 = Rewrite.rewrite(e0, rws1)
     // println("  1. " + e1)
-    val e2 = Rewrite.rewrite(e1, rws2)
+    // val e2 = Rewrite.rewrite(e1, rws2)
     // println("  2. " + e2)
-    val es3 = Rewrite.rewriteAll(e2, rws3)
+    val es3 = Rewrite.rewriteAll(e1, rws3)
     println()
     es3
   }
@@ -142,11 +142,15 @@ class Database {
   // find equivalence class of r
   def recover(r0: Rule): List[Rule] = {
     val rws1 = normalization.groupBy(_.fun)
-    val rws2 = unfoldOnce.groupBy(_.fun) // assume these are not cyclic!
+    // val rws2 = unfoldOnce.groupBy(_.fun) // assume these are not cyclic!
     val rws3 = recovery.groupBy(_.fun)
+    // println("  0. " + r0)
     val r1 = Rewrite.rewrite(r0, rws1)
-    val r2 = Rewrite.rewrite(r1, rws2)
-    val rs3 = Rewrite.rewriteAll(r2, rws3)
+    // println("  1. " + r1)
+    // val r2 = Rewrite.rewrite(r1, rws2)
+    // println("  2. " + r2)
+    val rs3 = Rewrite.rewriteAll(r1, rws3)
+    // println("  3. " + rs3)
     rs3
   }
 
