@@ -112,24 +112,41 @@ class Lemma(st: State, cfg: Config) extends Database {
   def generateLemmas() {
     for (
       (lhs, rhs) <- equations;
-      rhs_ <- recover(rhs)
-    ) {
-      if (lhs != rhs_) {
+      (ty, su, lhs_) <- instances(lhs);
+      rhs_ <- recover(rhs subst (ty, su))
+    ) (lhs, rhs_) match {
+      case (_, `lhs`) =>
+
+      case _ =>
         val eq = Rule(lhs, rhs_)
         // println("  " + eq.fun)
         lemmas = eq :: lemmas
-      }
     }
 
     for (
       (lhs, rhs, cond) <- formulas;
-      lhs_ <- recover(lhs);
-      rhs_ <- recover(rhs);
-      cond_ <- recover(cond)
-    ) {
-      val eq = Rule(lhs_, rhs_, cond_)
-      // println("  " + eq.fun)
-      lemmas = eq :: lemmas
+      (ty, su, lhs_) <- instances(lhs);
+      lhs__ <- recover(lhs_);
+      rhs_ <- recover(rhs subst (ty, su));
+      cond_ <- recover(cond subst (ty, su))
+    ) (lhs__, rhs_, cond_) match {
+      case (_, True, `lhs__`) =>
+      case (_, False, Not(`lhs`)) =>
+      case _ =>
+        val eq = Rule(lhs__, rhs_, cond_)
+        lemmas = eq :: lemmas
+      // println("recovered: " + eq)
+      // if(ty.nonEmpty)
+      //   println("  ty:    " + ty)
+      // if(su.nonEmpty)
+      //   println("  su:    " + su)
+      // println("  lhs:   " + lhs)
+      // println("  lhs':  " + lhs_)
+      // println("  lhs\":  " + lhs__)
+      // println("  rhs:   " + rhs)
+      // println("  rhs':  " + rhs_)
+      // println("  cond:  " + cond)
+      // println("  cond': " + cond_)
     }
   }
 

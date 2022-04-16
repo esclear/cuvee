@@ -1,6 +1,7 @@
 package cuvee.a
 
 import cuvee.pure._
+import arse.Backtrack
 
 class Database {
   var generalized: Set[Fun] = Set()
@@ -101,27 +102,41 @@ class Database {
   }
 
   // put right hand side and guard of r into normal form wrt. the current state
-  def normalized(r: Rule): Rule = {
-    val rws = normalization.groupBy(_.fun)
-    val Rule(lhs, rhs, cond, avoid) = r
-    val _rhs = Rewrite.rewrite(rhs, rws)
-    val _cond = Rewrite.rewrite(cond, rws)
-    Rule(lhs, _rhs, _cond, avoid)
-  }
+  // def normalized(r: Rule): Rule = {
+  //   val rws = normalization.groupBy(_.fun)
+  //   val Rule(lhs, rhs, cond, avoid) = r
+  //   val _rhs = Rewrite.rewrite(rhs, rws)
+  //   val _cond = Rewrite.rewrite(cond, rws)
+  //   Rule(lhs, _rhs, _cond, avoid)
+  // }
 
-  def normalized(df: Def): Def = {
-    val rws = normalization.groupBy(_.fun)
-    val Def(f, cs) = df
-    val cs_ =
-      for (C(args, guard, body) <- cs)
-        yield {
-          val args_ = Rewrite.rewrites(args, rws)
-          val guard_ = Rewrite.rewrites(guard, rws)
-          val body_ = Rewrite.rewrite(body, rws)
-          C(args_, guard_, body_)
-        }
+  // def normalized(df: Def): Def = {
+  //   val rws = normalization.groupBy(_.fun)
+  //   val Def(f, cs) = df
+  //   val cs_ =
+  //     for (C(args, guard, body) <- cs)
+  //       yield {
+  //         val args_ = Rewrite.rewrites(args, rws)
+  //         val guard_ = Rewrite.rewrites(guard, rws)
+  //         val body_ = Rewrite.rewrite(body, rws)
+  //         C(args_, guard_, body_)
+  //       }
 
-    Def(f, cs_)
+  //   Def(f, cs_)
+  // }
+
+  def instances(e: Expr): List[(Map[Param, Type], Map[Var, Expr], Expr)] = {
+    val e_ = normalized(e)
+
+    val res = for (r <- recovery) yield try {
+      val (ty, su) = Expr.bind(e_, r.lhs)
+      Some((ty, su, e_ subst (ty, su)))
+    } catch {
+      case _: Backtrack =>
+        None
+    }
+
+    res.flatten
   }
 
   // find equivalence class of e
@@ -135,23 +150,8 @@ class Database {
     // val e2 = Rewrite.rewrite(e1, rws2)
     // println("  2. " + e2)
     val es3 = Rewrite.rewriteAll(e1, rws3)
-    println()
+    // println()
     es3
-  }
-
-  // find equivalence class of r
-  def recover(r0: Rule): List[Rule] = {
-    val rws1 = normalization.groupBy(_.fun)
-    // val rws2 = unfoldOnce.groupBy(_.fun) // assume these are not cyclic!
-    val rws3 = recovery.groupBy(_.fun)
-    // println("  0. " + r0)
-    val r1 = Rewrite.rewrite(r0, rws1)
-    // println("  1. " + r1)
-    // val r2 = Rewrite.rewrite(r1, rws2)
-    // println("  2. " + r2)
-    val rs3 = Rewrite.rewriteAll(r1, rws3)
-    // println("  3. " + rs3)
-    rs3
   }
 
   def _known(df: Def, defs: List[Def]) = {

@@ -14,7 +14,9 @@ object _1 extends Run(Test, "-fuse", "examples/1.smt2")
 object _2 extends Run(Test, "-fuse", "examples/2.smt2")
 object _2_variants extends Run(Test, "-fuse", "-variants", "cases", "examples/2.smt2")
 object _7 extends Run(Test, "-fuse", "-variants", "cases", "examples/7.smt2")
-object _8 extends Run(Test, "-fuse", "-variants", "cases", "examples/8.smt2")
+object _8 extends Run(Test, "-fuse", "examples/8.smt2")
+object _8_variants extends Run(Test, "-fuse", "-variants", "cases", "examples/8.smt2")
+object _9_variants extends Run(Test, "-variants", "cases", "examples/9.smt2")
 
 
 object list_defs
