@@ -112,11 +112,7 @@ object Variant {
             i != j && mayOverlap(args, pats)
           }
 
-          val body_ = body bottomup {
-            case App(Inst(`f`, su), args) =>
-              App(Inst(f_, su), args)
-            case e => e
-          }
+          val body_ = body replace (f, f_)
 
           if (needsGuard)
             C(args, guard, body_)

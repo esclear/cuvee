@@ -103,6 +103,10 @@ object Promote {
   }
 
   // note: Def must not have non-static base cases
+
+  // TODO: we *can* promote individual base cases, and should do so (e.g. contains),
+  //       but then we have to make sure that the other base cases are robust against it,
+  //       similarly to the recursive cases
   def maybeResults(df: Def): (Query, Def, List[Rule]) = {
     val Def(f, cases) = df
 
@@ -151,7 +155,7 @@ object Promote {
 
           case x: Var if args contains x =>
             val j = args indexOf x
-            // val cs_ = C(args, guard, b_) // case remains unchanged! no need to hoist again
+            // val cs_ = C(args, guard, b_) // needs to tie base cases together
             (cs, None, Some(j))
 
           case _ =>
@@ -170,15 +174,19 @@ object Promote {
     val isLinear = φs.length <= 1
 
     if (isLinear) {
-      val eqs =
-        for (i <- indices)
-          yield {
-            val ys = xs updated (i, b_)
-            val xi = xs(i)
-            Rule(App(f, xs), ⊕(App(f_, ys), xi), True, List(xi -> b_))
-          }
+      val ys = for ((x, i) <- xs.zipWithIndex) yield {
+        if (indices contains i) b_
+        else x
+      }
 
-      (q, df_, eqs)
+      val zs = for ((x, i) <- xs.zipWithIndex) yield {
+        if (indices contains i) z
+        else x
+      }
+
+      val eq = Rule(App(f, zs), ⊕(App(f_, ys), z), True, List(z -> b_))
+      
+      (q, df_, List(eq))
     } else {
       // in this case, we could synthesize a function that aggregates all occurrences
       println("not promoting: " + f + " φs = " + φs)
@@ -186,33 +194,68 @@ object Promote {
     }
   }
 
-  def arithmetic(q: Query) = q match {
-    case Query(
-          Sort.int,
-          List(b0, f0, g0),
-          Clause(fs, Nil, Eq(w, App(f, List(App(b, Nil), w_)))),
-          List(
-            Clause(
-              fs_,
-              Nil,
-              Eq(
-                Plus(List(x_, App(f_, List(y_, z_)))),
-                App(f__, List(App(g_, List(x__, y__)), z__))
+  val rules = List(
+    (Sort.int, Zero, Plus),
+    (Sort.int, One, Times),
+    (Sort.bool, False, Or),
+    (Sort.bool, True, And)
+  )
+
+  def builtin(
+      q: Query,
+      typ: Type,
+      base: Expr,
+      fun: Sugar.commutative
+  ): Option[List[Rule]] = {
+    q match {
+      case Query(
+            `typ`,
+            List(b0, f0),
+            Clause(fs, Nil, Eq(w, App(f, List(App(b, Nil), w_)))),
+            Nil
+          ) if b0 == b.fun && f0 == f.fun && w == w_ =>
+        val xs = Expr.vars("x", f0.args)
+
+        val eq1 = Rule(Const(b0, typ), base)
+        val eq2 = Rule(App(f0, xs), fun(xs))
+
+        Some(List(eq1, eq2))
+
+      case Query(
+            `typ`,
+            List(b0, f0, g0),
+            Clause(fs, Nil, Eq(w, App(f, List(App(b, Nil), w_)))),
+            List(
+              Clause(
+                fs_,
+                Nil,
+                Eq(
+                  fun(List(x_, App(f_, List(y_, z_)))),
+                  App(f__, List(App(g_, List(x__, y__)), z__))
+                )
               )
             )
           )
-        )
-        if b0 == b.fun && f0 == f.fun && g0 == g_.fun && w == w_ && f == f_ && f_ == f__ && x_ == x__ && y_ == y__ && z_ == z__ =>
-      val xs = Expr.vars("x", f0.args)
-      val ys = Expr.vars("y", g0.args)
+          if b0 == b.fun && f0 == f.fun && g0 == g_.fun && w == w_ && f == f_ && f_ == f__ && x_ == x__ && y_ == y__ && z_ == z__ =>
+        val xs = Expr.vars("x", f0.args)
+        val ys = Expr.vars("y", g0.args)
 
-      val eq1 = Rule(Const(b0, Sort.int), Zero)
-      val eq2 = Rule(App(f0, xs), Plus(xs))
-      val eq3 = Rule(App(g0, ys), Plus(ys))
+        val eq1 = Rule(Const(b0, typ), base)
+        val eq2 = Rule(App(f0, xs), fun(xs))
+        val eq3 = Rule(App(g0, ys), fun(ys))
 
-      Some(List(eq1, eq2, eq3))
+        Some(List(eq1, eq2, eq3))
 
-    case _ =>
-      None
+      case _ =>
+        None
+    }
+  }
+
+  def builtin(q: Query): List[List[Rule]] = {
+    for (
+      (typ, base, fun) <- rules;
+      eqs <- builtin(q, typ, base, fun)
+    )
+      yield eqs
   }
 }

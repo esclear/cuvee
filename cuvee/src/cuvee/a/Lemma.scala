@@ -56,32 +56,32 @@ class Lemma(st: State, cfg: Config) extends Database {
     for ((q, df_, eqs) <- Promote.results(df)) {
       promotion = (df.fun, q, df_, eqs) :: promotion
 
-      Promote.arithmetic(q) match {
-        case Some(res) =>
-          val rws = res.groupBy(_.fun)
+      val possible = Promote.builtin(q)
+      for ((res, i) <- possible.zipWithIndex) {
+        val rws = res.groupBy(_.fun)
 
-          val Def(f_, cs) = df_
-          val cs_ =
-            for (C(args, guard, body) <- cs)
-              yield {
-                val args_ = Rewrite.rewrites(args, rws)
-                val guard_ = Rewrite.rewrites(guard, rws)
-                val body_ = Rewrite.rewrite(body, rws)
-                C(args_, guard_, body_)
-              }
+        val Def(f_, cs) = df_
+        val f__ = f_ __ i
+        val cs_ =
+          for (C(args, guard, body) <- cs)
+            yield {
+              val args_ = Rewrite.rewrites(args, rws)
+              val guard_ = Rewrite.rewrites(guard, rws)
+              val body_ = Rewrite.rewrite(body, rws)
+              C(args_, guard_, body_ replace (f_, f__))
+            }
 
-          val df__ = Def(f_, cs_)
-          normalize_(df__, false)
+        val df__ = Def(f__, cs_)
+        normalize_(df__, false)
 
-          for (eq <- eqs) {
-            // println("  " + eq)
-            val eq_ = Rewrite.rewrite(eq, rws)
-            // println("  " + eq_ + " (after normalizing)")
-            // unfoldOnceBy(eq_)
-            rewriteBy(eq_)
-          }
-
-        case None =>
+        for (eq <- eqs) {
+          val rhs_ = eq.rhs replace (f_, f__)
+          val eq_ = Rewrite.rewrite(eq copy (rhs = rhs_), rws)
+          // println("  promotion: " + eq_)
+          // println("  " + eq_ + " (after normalizing)")
+          // unfoldOnceBy(eq_)
+          rewriteBy(eq_)
+        }
       }
     }
   }
@@ -130,7 +130,7 @@ class Lemma(st: State, cfg: Config) extends Database {
       rhs_ <- recover(rhs subst (ty, su));
       cond_ <- recover(cond subst (ty, su))
     ) (lhs__, rhs_, cond_) match {
-      case (_, True, `lhs__`) =>
+      case (_, True, `lhs__`)     =>
       case (_, False, Not(`lhs`)) =>
       case _ =>
         val eq = Rule(lhs__, rhs_, cond_)

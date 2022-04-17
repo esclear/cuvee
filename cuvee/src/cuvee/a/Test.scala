@@ -72,8 +72,9 @@ object Test extends Main {
       println("synthesizing lemmas...")
       lemma.generateLemmas()
 
-      dump(out, "lemmas", lemma.lemmas)
-      dump(out, "recovery", lemma.recovery)
+      dump(out, "lemmas", lemma.lemmas.reverse)
+      // dump(out, "definitions", lemma.definitions.reverse.flatMap(_.rules))
+      // dump(out, "recovery", lemma.recovery)
       dump(out, "normalization", lemma.normalization)
 
       println("dumping queries...")

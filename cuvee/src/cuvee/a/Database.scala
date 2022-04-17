@@ -136,7 +136,8 @@ class Database {
         None
     }
 
-    res.flatten
+    val std = (Map[Param, Type](), Map[Var, Expr](), e_)
+    std :: res.flatten
   }
 
   // find equivalence class of e
