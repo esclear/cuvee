@@ -198,6 +198,10 @@ object Def {
       MurmurHash3.orderedHash(hash(args), con.hashCode())
   }
 
+  def hash(t: Type, seed: Int): Int ={
+    MurmurHash3.mix(hash(t), seed)
+  }
+
   def hash(ts: List[Type]): List[Int] = {
     ts map (hash(_))
   }
@@ -218,6 +222,10 @@ object Def {
 
   def hash(f: Fun, es: List[Expr]): List[Int] = {
     es map (hash(f, _))
+  }
+
+  def hashs(f: Fun, es: List[Expr]): Int = {
+    MurmurHash3.orderedHash(es map (hash(f, _)))
   }
 
   def hash(f: Fun, c: C): Int = c match {

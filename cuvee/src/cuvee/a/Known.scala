@@ -55,6 +55,19 @@ object Known {
     d
   }
 
+  def foo(f: Fun, i: Int, cs: List[C]): Int = {
+    val ks = cs.zipWithIndex collect {
+      case (C(args, guard, x: Var), k) if (args indexOf x) == i =>
+        k
+    }
+
+    ks match {
+      case Nil => 0
+      case List(k) =>
+        k
+    }
+  }
+
   // dg is known already and we want to check whether df matches
   def known(df: Def, dg: Def): Option[Rule] = {
     if (
@@ -76,11 +89,10 @@ object Known {
       val fcases_ = fcases.sortBy(Def.hash(f, _))
       val gcases_ = gcases.sortBy(Def.hash(g, _))
 
-      val F = f.args.zipWithIndex.sortBy { case (t, i) => Def.hash(t) }
-      val G = g.args.zipWithIndex.sortBy { case (t, i) => Def.hash(t) }
+      val F = f.args.zipWithIndex.sortBy { case (t, i) => Def.hash(t) -> foo(f, i, fcases_) }
+      val G = g.args.zipWithIndex.sortBy { case (t, i) => Def.hash(t) -> foo(g, i, gcases_) }
       val (ftypes, fp) = F.unzip
       val (gtypes, gp) = G.unzip
-
       val ok_ =
         (fcases_ zip gcases_) forall { case (cf, cg) =>
           {
@@ -91,11 +103,11 @@ object Known {
 
             val res = ok(
               f,
-              fp map fargs,
+              fp, fargs,
               fguard,
               fbody,
               g,
-              gp map gargs,
+              gp, gargs,
               gguard,
               gbody,
               su
@@ -132,20 +144,23 @@ object Known {
       None
     }
   }
+
   def ok(
       f: Fun,
+      fp: List[Int],
       fargs: List[Expr],
       fguard: List[Expr],
       fbody: Expr,
       g: Fun,
+      gp: List[Int],
       gargs: List[Expr],
       gguard: List[Expr],
       gbody: Expr,
       su: Map[Param, Type]
   ): Boolean = {
     println("checking ")
-    println(fargs.mkString(" "))
-    println(gargs.mkString(" "))
+    println(fargs.mkString(" ") + ". " + fbody)
+    println(gargs.mkString(" ")+ ". " + gbody)
 
     var ok = true
     var re: Map[Var, Var] = Map()
@@ -167,18 +182,21 @@ object Known {
         renames(as, bs)
     }
 
-    renames(fargs, gargs)
+    renames(fp map fargs, gp map gargs)
 
     if (ok) {
       val _fguard = fguard rename re
       val _gguard = gguard rename re
 
       val _fbody = fbody rename re bottomup {
-        case App(Inst(`f`, _), args) => App(Inst(`g`, su), args)
+        case App(Inst(`f`, _), args) => App(Inst(g, su), fp map args)
         case e                       => e
       }
 
-      val _gbody = gbody rename re
+      val _gbody = gbody rename re bottomup {
+        case App(Inst(`g`, _), args) => App(Inst(g, su), gp map args)
+        case e                       => e
+      }
 
       ok = _fguard == _gguard && _fbody == _gbody
 
