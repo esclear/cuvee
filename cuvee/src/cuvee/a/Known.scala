@@ -65,6 +65,11 @@ object Known {
       case Nil => 0
       case List(k) =>
         k
+      case _ =>
+        println("  multiple occurrences of argument at " + i)
+        println("  " + f)
+        println("  " + ks.mkString(" "))
+        ks.sum
     }
   }
 
@@ -89,8 +94,12 @@ object Known {
       val fcases_ = fcases.sortBy(Def.hash(f, _))
       val gcases_ = gcases.sortBy(Def.hash(g, _))
 
-      val F = f.args.zipWithIndex.sortBy { case (t, i) => Def.hash(t) -> foo(f, i, fcases_) }
-      val G = g.args.zipWithIndex.sortBy { case (t, i) => Def.hash(t) -> foo(g, i, gcases_) }
+      val F = f.args.zipWithIndex.sortBy { case (t, i) =>
+        Def.hash(t) -> foo(f, i, fcases_)
+      }
+      val G = g.args.zipWithIndex.sortBy { case (t, i) =>
+        Def.hash(t) -> foo(g, i, gcases_)
+      }
       val (ftypes, fp) = F.unzip
       val (gtypes, gp) = G.unzip
       val ok_ =
@@ -103,17 +112,19 @@ object Known {
 
             val res = ok(
               f,
-              fp, fargs,
+              fp,
+              fargs,
               fguard,
               fbody,
               g,
-              gp, gargs,
+              gp,
+              gargs,
               gguard,
               gbody,
               su
             )
 
-            println("  = "  + res )
+            println("  = " + res)
             res
           } or {
             false
@@ -160,7 +171,7 @@ object Known {
   ): Boolean = {
     println("checking ")
     println(fargs.mkString(" ") + ". " + fbody)
-    println(gargs.mkString(" ")+ ". " + gbody)
+    println(gargs.mkString(" ") + ". " + gbody)
 
     var ok = true
     var re: Map[Var, Var] = Map()
@@ -200,9 +211,9 @@ object Known {
 
       ok = _fguard == _gguard && _fbody == _gbody
 
-      if(!ok && _fguard != _gguard)
+      if (!ok && _fguard != _gguard)
         println("; guards different: " + _fguard + " and " + _gguard)
-      if(!ok && _fbody != _gbody)
+      if (!ok && _fbody != _gbody)
         println("; bodies different: " + _fbody + " and " + _gbody)
     }
 
