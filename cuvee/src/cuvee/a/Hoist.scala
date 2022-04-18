@@ -60,7 +60,7 @@ object Hoist {
     val (zs, as) = su.flatten.unzip
 
     if (zs.nonEmpty) {
-      val f_ = Fun(f.name + "'", f.params, f.args ++ zs.types, f.res)
+      val f_ = Fun(hoisted(f.name), f.params, f.args ++ zs.types, f.res)
 
       val cases__ =
         for (C(args, guard, body) <- cases_)

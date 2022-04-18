@@ -7,6 +7,14 @@ import java.io.PrintStream
 import java.io.FileOutputStream
 
 package object a {
+  def fused(index: Int)(name1: String, name2: String) = name1 + "_" + index + "_" + name2
+  def hoisted(name: String) = name + "_"
+  def removeunused(name: String) = name + "u"
+  def promoted(index: Int)(name: String) = name + "p" + index
+  def precondition(index: Int)(name: String) = name + "_pre" + index
+  def casevariant(index: Int)(name: String) = name + "_c" + index
+  def indexed(index: Int)(name: String) = name + index
+
   def read(file: String): (List[Def], List[Cmd], State) = {
     val (cmds, st) = parse(file)
 

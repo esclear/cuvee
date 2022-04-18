@@ -7,20 +7,24 @@ import java.io.File
 import java.io.PrintStream
 import cuvee.sexpr.Syntax
 
+object contains extends Run(Test, "examples/contains.smt2")
+
 object debug extends Run(Test, "examples/debug.smt2")
 
 object _0 extends Run(Test, "-fuse", "examples/0.smt2")
 object _1 extends Run(Test, "-fuse", "examples/1.smt2")
 object _2 extends Run(Test, "-fuse", "examples/2.smt2")
-object _2_variants extends Run(Test, "-fuse", "-variants", "cases", "examples/2.smt2")
+object _2_variants
+    extends Run(Test, "-fuse", "-variants", "cases", "examples/2.smt2")
 object _7 extends Run(Test, "-fuse", "-variants", "cases", "examples/7.smt2")
-object _8 extends Run(Test, "-fuse", "examples/8.smt2")
-object _8_variants extends Run(Test, "-fuse", "-variants", "cases", "examples/8.smt2")
+object _8 extends Run(Test, "examples/8.smt2")
+object _8_cases
+    extends Run(Test, "-fuse", "-variants", "cases", "examples/8.smt2")
+object _8_cases_only extends Run(Test, "-variants", "cases", "examples/8.smt2")
+// object _8_negated extends Run(Test, "-variants", "negated", "examples/8.smt2")
 object _9_variants extends Run(Test, "-variants", "cases", "examples/9.smt2")
 
-
-object list_defs
-    extends Run(Test, "-fuse", "examples/list-defs.smt2")
+object list_defs extends Run(Test, "-fuse", "examples/list-defs.smt2")
 
 object list_defs_variants
     extends Run(Test, "-fuse", "-variants", "cases", "examples/list-defs.smt2")
@@ -74,47 +78,11 @@ object Test extends Main {
 
       dump(out, "lemmas", lemma.lemmas.reverse)
       // dump(out, "definitions", lemma.definitions.reverse.flatMap(_.rules))
-      // dump(out, "recovery", lemma.recovery)
+      dump(out, "recovery", lemma.recovery)
       dump(out, "normalization", lemma.normalization)
+      queries(lemma.promotion, lemma.definitions, cmds)
 
-      println("dumping queries...")
-
-      val dir = new File("queries/")
-      dir.mkdirs()
-
-      for ((g, q, dg, eqs) <- lemma.promotion) {
-        println("  " + g)
-
-        val out = log("queries/" + g.name + ".smt2")
-
-        for (cmd @ DeclareSort(_, _) <- cmds) {
-          dump(out, cmd)
-        }
-
-        for (cmd @ DeclareDatatypes(_, _) <- cmds) {
-          dump(out, cmd)
-        }
-
-        for (df <- lemma.definitions) {
-          for (cmd <- df.cmds)
-            dump(out, cmd)
-        }
-
-        out.println("; auxiliary definition")
-
-        for (cmd <- dg.cmds)
-          dump(out, cmd, comment = true)
-
-        out.println("; promotion lemmas")
-
-        for (eq <- eqs)
-          dump(out, eq.cmd, comment = true)
-
-        for (cmd <- q.cmds)
-          dump(out, cmd)
-
-        out.close()
-      }
+      println("done")
     }
   }
 
@@ -133,4 +101,53 @@ object Test extends Main {
       out.println("  " + item)
     out.println()
   }
+
+  def queries(
+      qs: List[(Fun, Query, Def, Rule)],
+      defs: List[Def],
+      cmds: List[Cmd]
+  ) {
+    println("dumping queries...")
+
+    val dir = new File("queries/")
+    dir.mkdirs()
+
+    {
+      val out = log("queries/definitions.smt2")
+
+      for (cmd @ DeclareSort(_, _) <- cmds) {
+        dump(out, cmd)
+      }
+
+      for (cmd @ DeclareDatatypes(_, _) <- cmds) {
+        dump(out, cmd)
+      }
+
+      for (df <- defs) {
+        for (cmd <- df.cmds)
+          dump(out, cmd)
+      }
+    }
+
+    for ((g, q, dg, eq) <- qs) {
+      val name = dg.fun.name
+
+      // println("  " + name)
+
+      val out = log("queries/" + name + ".smt2")
+
+      out.println("; auxiliary definition")
+      for (cmd <- dg.cmds)
+        dump(out, cmd, comment = true)
+
+      out.println("; promotion lemma")
+      dump(out, eq.cmd, comment = true)
+
+      for (cmd <- q.cmds)
+        dump(out, cmd)
+
+      out.close()
+    }
+  }
+
 }

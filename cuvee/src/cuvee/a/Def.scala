@@ -28,6 +28,14 @@ case class C(args: List[Expr], guard: List[Expr], body: Expr) {
   def isRecursive(fun: Fun): Boolean =
     fun in body
 
+  def isTailRecursive(fun: Fun): Boolean =
+    body match {
+      case App(Inst(`fun`, _), args) =>
+        true
+      case _ =>
+        false
+    }
+
   override def toString = {
     if (guard.isEmpty)
       args.mkString("case ", ", ", "") + "\n  = " + body
@@ -49,6 +57,8 @@ case class Def(fun: Fun, cases: List[C]) {
       "type mismatch: " + fun + " in case " + cs + ": " + cs.typ
     )
   }
+
+  def typ = fun.res
 
   def rules =
     cases map (_ rule fun)
@@ -178,7 +188,19 @@ object Def {
   }
 
   import scala.util.hashing.MurmurHash3
+  val paramSeed = "Param".hashCode
   val varSeed = "Var".hashCode
+
+  def hash(t: Type): Int = t match {
+    case p: Param =>
+      paramSeed
+    case Sort(con, args) =>
+      MurmurHash3.orderedHash(hash(args), con.hashCode())
+  }
+
+  def hash(ts: List[Type]): List[Int] = {
+    ts map (hash(_))
+  }
 
   // weak hash function that captures the structure
   // but not the actual computation

@@ -48,12 +48,19 @@ object Known {
         check(rest)
     }
 
+  def invert(a: List[Int]) = {
+    val b = a.zipWithIndex
+    val c = b.sortBy(_._1)
+    val (_, d) = c.unzip
+    d
+  }
+
   // dg is known already and we want to check whether df matches
   def known(df: Def, dg: Def): Option[Rule] = {
     if (
       df.fun != dg.fun &&
       df.fun.args.length == dg.fun.args.length &&
-      // df.fun.args == dg.fun.args &&arams &&
+      // df.fun.args == dg.fun.args &&
       // df.fun.args == dg.fun.args &&
       // df.fun.res == dg.fun.res &&
       df.cases.length == dg.cases.length
@@ -66,77 +73,121 @@ object Known {
       // val x = cuvee.keyedPairings(fcases, gcases, key(f), key(g), prio)
       // val y = check(x)
 
+      val fcases_ = fcases.sortBy(Def.hash(f, _))
+      val gcases_ = gcases.sortBy(Def.hash(g, _))
+
+      val F = f.args.zipWithIndex.sortBy { case (t, i) => Def.hash(t) }
+      val G = g.args.zipWithIndex.sortBy { case (t, i) => Def.hash(t) }
+      val (ftypes, fp) = F.unzip
+      val (gtypes, gp) = G.unzip
+
       val ok_ =
-        (fcases zip gcases) forall { case (cf, cg) =>
-          ok(f, cf, g, cg)
+        (fcases_ zip gcases_) forall { case (cf, cg) =>
+          {
+            val su = Type.binds(ftypes, g.res, gtypes, f.res, Map())
+
+            val C(fargs, fguard, fbody) = cf
+            val C(gargs, gguard, gbody) = cg inst su
+
+            val res = ok(
+              f,
+              fp map fargs,
+              fguard,
+              fbody,
+              g,
+              gp map gargs,
+              gguard,
+              gbody,
+              su
+            )
+
+            println("  = "  + res )
+            res
+          } or {
+            false
+          }
         }
 
       if (ok_) {
-        val xs = Expr.vars("x", f.args)
-        val lhs = App(f, xs)
-        val rhs = App(g, xs)
+        val xs = Expr.vars("x", ftypes)
+        val fm = invert(fp)
+        val gm = invert(gp)
+
+        val lhs = App(f, fm map xs)
+        val rhs = App(g, gm map xs)
         val eq = Rule(lhs, rhs, True)
-        // println("can represent " + f + " as " + g)
+
+        println("representation: " + eq)
         Some(eq)
       } else {
+        if (Def.hash(df) == Def.hash(dg)) {
+          println(
+            "  potentially missed equivalence " + f.name + " == " + g.name
+          )
+        }
+
         None
       }
     } else {
       None
     }
   }
+  def ok(
+      f: Fun,
+      fargs: List[Expr],
+      fguard: List[Expr],
+      fbody: Expr,
+      g: Fun,
+      gargs: List[Expr],
+      gguard: List[Expr],
+      gbody: Expr,
+      su: Map[Param, Type]
+  ): Boolean = {
+    println("checking ")
+    println(fargs.mkString(" "))
+    println(gargs.mkString(" "))
 
-  def ok(f: Fun, cf: C, g: Fun, cg: C): Boolean = {
-    {
-      val su = Type.binds(g.args, g.res, f.args, f.res, Map())
-      // println(su)
+    var ok = true
+    var re: Map[Var, Var] = Map()
 
-      val C(fargs, fguard, fbody) = cf
-      val C(gargs, gguard, gbody) = cg inst su
-
-      var ok = true
-      var re: Map[Var, Var] = Map()
-
-      def rename(a: Expr, b: Expr): Unit = (a, b) match {
-        case (x: Var, y: Var) =>
-          re += (x -> y)
-        case (App(Inst(f, fs), as), App(Inst(g, gs), bs)) if f == g =>
-          renames(as, bs)
-        case _ =>
-          ok = false
-      }
-
-      def renames(as: List[Expr], bs: List[Expr]): Unit = (as, bs) match {
-        case (Nil, Nil) =>
-        case (a :: as, b :: bs) =>
-          rename(a, b)
-          renames(as, bs)
-      }
-
-      renames(fargs, gargs)
-
-      if (ok) {
-        val _fguard = fguard rename re
-        val _gguard = gguard rename re
-
-        val _fbody = fbody rename re bottomup {
-          case App(Inst(`f`, _), args) => App(Inst(`g`, su), args)
-          case e                       => e
-        }
-
-        val _gbody = gbody rename re
-
-        ok = _fguard == _gguard && _fbody == _gbody
-
-        // if(!ok && _fguard != _gguard)
-        //   println("; guards different: " + _fguard + " and " + _gguard)
-        // if(!ok && _fbody != _gbody)
-        //   println("; bodies different: " + _fbody + " and " + _gbody)
-      }
-
-      ok
-    } or {
-      false
+    def rename(a: Expr, b: Expr): Unit = (a, b) match {
+      case (x: Var, y: Var) =>
+        re += (x -> y)
+      case (App(Inst(f, fs), as), App(Inst(g, gs), bs)) if f == g =>
+        renames(as, bs)
+      case _ =>
+        println("no match: " + a + " != " + b)
+        ok = false
     }
+
+    def renames(as: List[Expr], bs: List[Expr]): Unit = (as, bs) match {
+      case (Nil, Nil) =>
+      case (a :: as, b :: bs) =>
+        rename(a, b)
+        renames(as, bs)
+    }
+
+    renames(fargs, gargs)
+
+    if (ok) {
+      val _fguard = fguard rename re
+      val _gguard = gguard rename re
+
+      val _fbody = fbody rename re bottomup {
+        case App(Inst(`f`, _), args) => App(Inst(`g`, su), args)
+        case e                       => e
+      }
+
+      val _gbody = gbody rename re
+
+      ok = _fguard == _gguard && _fbody == _gbody
+
+      if(!ok && _fguard != _gguard)
+        println("; guards different: " + _fguard + " and " + _gguard)
+      if(!ok && _fbody != _gbody)
+        println("; bodies different: " + _fbody + " and " + _gbody)
+    }
+
+    ok
   }
 }

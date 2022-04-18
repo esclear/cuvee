@@ -58,17 +58,18 @@ object Promote {
     println(df)
     println()
 
-    val (q, df_, eq) = maybeResults(df)
-    println("exists")
-    for (f <- q.funs)
-      println("  " + f)
-    println("where")
-    for (c <- q.constraints)
-      println("  " + c)
-    println("such that")
-    println("  " + eq)
-    println()
-    println(df_)
+    for ((q, df_, eq) <- maybeResults(df)) {
+      println("exists")
+      for (f <- q.funs)
+        println("  " + f)
+      println("where")
+      for (c <- q.constraints)
+        println("  " + c)
+      println("such that")
+      println("  " + eq)
+      println()
+      println(df_)
+    }
   }
 
   def abstracted(
@@ -95,11 +96,12 @@ object Promote {
     }
   }
 
-  def results(df: Def): Option[(Query, Def, List[Rule])] = try {
-    Some(maybeResults(df))
+  def results(df: Def): List[(Query, Def, Rule)] = try {
+    maybeResults(df)
   } catch {
     case _: arse.Backtrack =>
-      None
+      println("not promoting (backtrack): " + df.fun)
+      Nil
   }
 
   // note: Def must not have non-static base cases
@@ -107,90 +109,114 @@ object Promote {
   // TODO: we *can* promote individual base cases, and should do so (e.g. contains),
   //       but then we have to make sure that the other base cases are robust against it,
   //       similarly to the recursive cases
-  def maybeResults(df: Def): (Query, Def, List[Rule]) = {
+  def maybeResults(df: Def): List[(Query, Def, Rule)] = {
     val Def(f, cases) = df
 
-    val typ = f.res
-    val params = f.params filter (_ in typ)
-    val ⊕ = Fun("oplus", params, List(typ, typ), typ)
+    val recursiveCases = cases.count { cs =>
+      cs.isRecursive(f) && !cs.isTailRecursive(f)
+    }
 
-    val z = Var("z", typ)
-    val f_ = Fun(f.name + "'", f.params, f.args, f.res)
+    val isLinear = recursiveCases <= 1
 
-    val b = Fun("b", params, Nil, typ)
-    val b_ = Const(b, typ)
-
-    val base = Forall(List(z), z === ⊕(b_, z))
-
-    val stuff =
-      for ((cs @ C(args, guard, body), i) <- cases.zipWithIndex)
-        yield body match {
-          case App(Inst(`f`, su), as) => // tail recursive case is irrelevant
-            val body_ = App(Inst(f_, su), as)
-            val cs_ = C(args, guard, body_)
-            (cs_, None, None)
-
-          case _ if cs.isRecursive(f) =>
-            val (body_, rs) = abstracted(f, body)
-            val (ys, es) = rs.unzip
-            val ws = body_.free filterNot ys.contains
-            val vs = guard.free
-            val as = ys map { ⊕(_, z) }
-            val su = Expr.subst(ys, as)
-            val lhs = body_ subst su
-
-            val xs = ws.toList ++ vs.toList
-            val zs = xs ++ ys
-            val ts = zs.types
-            val params = f.params filter (_ in ts)
-            val φ = Fun("phi" + i, params, ts, typ)
-            val rhs = ⊕(App(φ, zs), z)
-
-            val cond = Clause(z :: zs, guard, lhs === rhs)
-
-            val bs_ = es map { App(f_, _) }
-            val φ_ = App(φ, xs ++ bs_)
-            val cs_ = C(args, guard, φ_)
-            (cs_, Some(φ -> cond), None)
-
-          case x: Var if args contains x =>
-            val j = args indexOf x
-            // val cs_ = C(args, guard, b_) // needs to tie base cases together
-            (cs, None, Some(j))
-
-          case _ =>
-            // cuvee.error("cannot promote " + f + ", base not hoisted: " + body)
-            backtrack("cannot promote " + f + ", base not hoisted: " + body)
-        }
-
-    val (cases_, stuff_, base_) = stuff.unzip3
-    val (φs, conds) = stuff_.flatten.unzip
-    val indices = base_.flatten
-
-    val xs = Expr.vars("x", f.args)
-    val q = Query(typ, b :: ⊕ :: φs, base, conds)
-    val df_ = Def(f_, cases_)
-
-    val isLinear = φs.length <= 1
-
-    if (isLinear) {
-      val ys = for ((x, i) <- xs.zipWithIndex) yield {
-        if (indices contains i) b_
-        else x
-      }
-
-      val zs = for ((x, i) <- xs.zipWithIndex) yield {
-        if (indices contains i) z
-        else x
-      }
-
-      val eq = Rule(App(f, zs), ⊕(App(f_, ys), z), True, List(z -> b_))
-      
-      (q, df_, List(eq))
-    } else {
+    if (!isLinear) {
       // in this case, we could synthesize a function that aggregates all occurrences
-      println("not promoting: " + f + " φs = " + φs)
-      (q, df_, Nil)
+      println(
+        "not promoting: " + f + " with " + recursiveCases + " recursive cases"
+      )
+      Nil
+    } else {
+      val is = cases.zipWithIndex collect {
+        case (C(args, guard, x: Var), i) if args contains x =>
+          (i, args indexOf x)
+      }
+
+      val typ = f.res
+      val params = f.params filter (_ in typ)
+      val ⊕ = Fun("oplus", params, List(typ, typ), typ)
+
+      val z = Var("z", typ)
+
+      val b = Fun("b", params, Nil, typ)
+      val b_ = Const(b, typ)
+
+      val base = Forall(List(z), z === ⊕(b_, z))
+      val xs = Expr.vars("x", f.args)
+
+      for ((i, k) <- is) yield {
+        val f_ = Fun(promoted(i)(f.name), f.params, f.args, f.res)
+
+        val stuff =
+          for ((cs @ C(args, guard, body), k) <- cases.zipWithIndex)
+            yield body match {
+              case x: Var if i == k =>
+                assert(args contains x) // guaranteed from earlier
+                val j = args indexOf x
+                (cs, None, Some(j -> b_))
+
+              case x: Var if args contains x =>
+                val j = args indexOf x
+
+                val c = Fun("c", params, Nil, typ)
+                val c_ = Const(c, typ)
+
+                val lhs = c_
+                val rhs = ⊕(c_, z)
+                val cond = Forall(List(z), lhs === rhs)
+
+                (cs, Some(c -> cond), Some(j -> c_))
+
+              // tail recursive case is irrelevant
+              case App(Inst(`f`, su), as) =>
+                val body_ = App(Inst(f_, su), as)
+                val cs_ = C(args, guard, body_)
+                (cs_, None, None)
+
+              // case _ if cs.isRecursive(f) =>
+              case _ =>
+                val (body_, rs) = abstracted(f, body)
+                val (ys, es) = rs.unzip
+                val ws = body_.free filterNot ys.contains
+                val vs = guard.free
+                val as = ys map { ⊕(_, z) }
+                val su = Expr.subst(ys, as)
+                val lhs = body_ subst su
+
+                val xs = ws.toList ++ vs.toList
+                val zs = xs ++ ys
+                val ts = zs.types
+                val params = f.params filter (_ in ts)
+                val φ = Fun("phi" + k, params, ts, typ)
+                val rhs = ⊕(App(φ, zs), z)
+
+                val cond = Clause(z :: zs, guard, lhs === rhs)
+
+                val bs_ = es map { App(f_, _) }
+                val φ_ = App(φ, xs ++ bs_)
+                val cs_ = C(args, guard, φ_)
+                (cs_, Some(φ -> cond), None)
+
+              // case _ =>
+              //   backtrack("cannot promote " + f + ", base not hoisted: " + body)
+            }
+
+        val (cases_, stuff_, js_) = stuff.unzip3
+        val (φs, conds) = stuff_.flatten.unzip
+        val js = js_.flatten.toMap // can only a single result
+
+        val q = Query(typ, b :: ⊕ :: φs, base, conds)
+        val df_ = Def(f_, cases_)
+
+        val ys =
+          for ((x, j) <- xs.zipWithIndex)
+            yield
+              if (js contains j) js(j)
+              else x
+
+        val xk = xs(k)
+        val eq = Rule(App(f, xs), ⊕(App(f_, ys), xk), True, List(xk -> b_))
+
+        (q, df_, eq)
+      }
     }
   }
 
@@ -201,6 +227,11 @@ object Promote {
     (Sort.bool, True, And)
   )
 
+  def not(phi: Expr) = phi match {
+    case True  => False
+    case False => True
+  }
+
   def builtin(
       q: Query,
       typ: Type,
@@ -210,16 +241,27 @@ object Promote {
     q match {
       case Query(
             `typ`,
-            List(b0, f0),
+            List(b0, f0, g0),
             Clause(fs, Nil, Eq(w, App(f, List(App(b, Nil), w_)))),
-            Nil
-          ) if b0 == b.fun && f0 == f.fun && w == w_ =>
+            List(
+              Clause(fs_, pre_, Eq(w__, App(f_, List(App(g_, xs_), z_))))
+            )
+          ) if b0 == b.fun && f0 == f.fun && w == w_ && (xs_ contains w__) =>
         val xs = Expr.vars("x", f0.args)
 
         val eq1 = Rule(Const(b0, typ), base)
         val eq2 = Rule(App(f0, xs), fun(xs))
+        val eq3 = Rule(App(g0, xs_), not(base))
 
-        Some(List(eq1, eq2))
+        // println("query: ")
+        // for(phi <- q.base :: q.conds)
+        //   println("  " + phi)
+        // println("solution: ")
+        // println("  " + eq1)
+        // println("  " + eq2)
+        // println("  " + eq3)
+
+        Some(List(eq1, eq2, eq3))
 
       case Query(
             `typ`,

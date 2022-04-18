@@ -38,12 +38,56 @@ object Variant {
     }
   }
 
+  /* def boolean(f: Fun, f_ : Fun, expr: Expr, negate: Boolean): Expr = {
+    expr match {
+      case True  => if (negate) False else True
+      case False => if (negate) True else False
+
+      case Not(expr) => // neet to get down to recursive calls
+        boolean(f, f_, expr, !negate)
+      case Imp(phi, psi) =>
+        And(boolean(f, f_, phi, !negate), boolean(f, f_, psi, negate))
+      case And(phis) =>
+        Or(boolean(f, f_, phis, negate))
+      case Or(phis) =>
+        And(boolean(f, f_, phis, negate))
+      case App(Inst(`f`, su), args) =>
+        App(Inst(f_, su), args)
+
+      case _ =>
+        Not(expr)
+    }
+  }
+
+  def boolean(
+      f: Fun,
+      f_ : Fun,
+      exprs: List[Expr],
+      negate: Boolean
+  ): List[Expr] = {
+    exprs map (boolean(f, f_, _, negate))
+  }
+
+  // this does not work that great,
+  // the issue lies within the guard instead, cf.   remove'_pre₁'? vs contains'
   def negated(df: Def): (Def, Rule) = {
     val Def(f, cases) = df
-    require(f.res == Sort.bool, "cannot generate negated variant, not a predicate")
-    
-    ???
-  }
+    require(
+      f.res == Sort.bool,
+      "cannot generate negated variant, not a predicate"
+    )
+
+    val f_ = Fun("not_" + f.name, f.params, f.args, f.res)
+    val cases_ =
+      for (C(args, guard, body) <- cases)
+        yield C(args, guard, boolean(f, f_, body, negate = true))
+
+    val df_ = Def(f_, cases_)
+    val xs = Expr.vars("x", f.args)
+    val eq = Rule(Not(App(f, xs)), App(f_, xs))
+
+    (df_, eq)
+  } */
 
   def restricted(df: Def): List[(Def, Def, Rule)] = {
     val Def(f, cases) = df
@@ -51,7 +95,6 @@ object Variant {
     for ((cases, i) <- variants.zipWithIndex if isUseful(f, cases))
       yield restricted(f, i, cases)
   }
-
 
   def isUseful(f: Fun, cases: List[(Boolean, C)]) = {
     // don't generate variants in the following situations
@@ -81,14 +124,13 @@ object Variant {
       Nil
   }
 
-
   def restricted(
       f: Fun,
       i: Int,
       cases: List[(Boolean, C)]
   ): (Def, Def, Rule) = {
-    val p_ = Fun(f.name + "_pre" __ i, f.params, f.args, Sort.bool)
-    val f_ = Fun(f.name + "$" __ i, f.params, f.args, f.res)
+    val p_ = Fun(precondition(i)(f.name), f.params, f.args, Sort.bool)
+    val f_ = Fun(casevariant(i)(f.name), f.params, f.args, f.res)
 
     val pcases_ = for ((take, C(args, guard, body)) <- cases) yield {
       if (take) {

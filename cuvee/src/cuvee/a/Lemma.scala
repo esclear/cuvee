@@ -11,7 +11,7 @@ class Config {
 class Lemma(st: State, cfg: Config) extends Database {
 
   var lemmas: List[Rule] = Nil
-  var promotion: List[(Fun, Query, Def, List[Rule])] = Nil
+  var promotion: List[(Fun, Query, Def, Rule)] = Nil
 
   var formulas: List[(Expr, Expr, Expr)] = Nil
   var equations: List[(Expr, Expr)] = Nil
@@ -53,15 +53,15 @@ class Lemma(st: State, cfg: Config) extends Database {
     // currently this generates a lemma of the form:
     // length'(x₀, x₁, x₂) = (length''(x₀, x₁, x₂) + 0)
     // which does not put 0 into the correct *argument* in the rec. call
-    for ((q, df_, eqs) <- Promote.results(df)) {
-      promotion = (df.fun, q, df_, eqs) :: promotion
+    for ((q, df_, eq) <- Promote.results(df)) {
+      promotion = (df.fun, q, df_, eq) :: promotion
 
       val possible = Promote.builtin(q)
       for ((res, i) <- possible.zipWithIndex) {
         val rws = res.groupBy(_.fun)
 
         val Def(f_, cs) = df_
-        val f__ = f_ __ i
+        val f__ = f_ rename indexed(i)
         val cs_ =
           for (C(args, guard, body) <- cs)
             yield {
@@ -72,16 +72,15 @@ class Lemma(st: State, cfg: Config) extends Database {
             }
 
         val df__ = Def(f__, cs_)
+        // println(df__)
         normalize_(df__, false)
 
-        for (eq <- eqs) {
-          val rhs_ = eq.rhs replace (f_, f__)
-          val eq_ = Rewrite.rewrite(eq copy (rhs = rhs_), rws)
-          // println("  promotion: " + eq_)
-          // println("  " + eq_ + " (after normalizing)")
-          // unfoldOnceBy(eq_)
-          rewriteBy(eq_)
-        }
+        val rhs_ = eq.rhs replace (f_, f__)
+        val eq_ = Rewrite.rewrite(eq copy (rhs = rhs_), rws)
+        // println("  promotion: " + eq_)
+        // println("  " + eq_ + " (after normalizing)")
+        // unfoldOnceBy(eq_)
+        rewriteBy(eq_)
       }
     }
   }
@@ -95,6 +94,14 @@ class Lemma(st: State, cfg: Config) extends Database {
         formulas = (lhs, rhs, cond) :: formulas
       }
     }
+
+    // if (cfg.variants contains "negated") {
+    //   if (df.typ == Sort.bool) {
+    //     val (df_neg, eq) = Variant.negated(df)
+    //     normalize_(df_neg, false)
+    //     // recoverBy(eq)
+    //   }
+    // }
   }
 
   def generateVariants() {

@@ -38,7 +38,7 @@ object Fuse {
       "cannot fuse " + f + " with " + g + " at pos " + pos
     )
 
-    val name = f.name + "_" + g.name + "_" + pos
+    val name = fused(pos)(f.name, g.name)
     val params = f.params ++ g.params
     val args = f.args patch (pos, g.args, 1)
     val res = f.res
