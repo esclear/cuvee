@@ -3,50 +3,6 @@ package cuvee.a
 import cuvee.pure._
 
 object Cleanup {
-  def main(args: Array[String]) {
-    import Fun._
-
-    val head = Fun("head", List(a), List(list_a), a)
-    val tail = Fun("tail", List(a), List(list_a), list_a)
-    val dt = Datatype(List(a), List((nil, Nil), (cons, List(head, tail))))
-
-    val id = Fun("id", List(a), List(list_a), list_a)
-    val f = Fun("f", List(a, b), List(list_a, b), b)
-    val x = Var("x", a)
-    val y = Var("y", b)
-    val xs = Var("xs", list_a)
-
-    val nil_ = Const(nil, list_a)
-
-    val df = Def(
-      f,
-      List(
-        C(List(nil_, y), Nil, y),
-        C(List(cons(x, xs), y), Nil, f(xs, y))
-      )
-    )
-
-    for (eq <- constant(df)) {
-      println(eq)
-    }
-
-    val dg = Def(
-      id,
-      List(
-        C(List(nil_), Nil, nil_),
-        C(List(cons(x, xs)), Nil, cons(x, id(xs)))
-      )
-    )
-
-    // for (eq <- identity(dg)) {
-    //   println(eq)
-    // }
-
-    // val (id_, eq_) = identityFor(list_a, dt)
-    // println(id_)
-    // println(eq_)
-  }
-
   def identityFor(typ: Sort, dt: Datatype): (Def, Rule) = {
     val Datatype(params, constrs) = dt
     val f = Fun("id_" + typ.con.name, params, List(typ), typ)

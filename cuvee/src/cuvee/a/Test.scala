@@ -21,7 +21,9 @@ object _8 extends Run(Test, "examples/8.smt2")
 object _8_cases
     extends Run(Test, "-fuse", "-variants", "cases", "examples/8.smt2")
 object _8_cases_only extends Run(Test, "-variants", "cases", "examples/8.smt2")
-// object _8_negated extends Run(Test, "-variants", "negated", "examples/8.smt2")
+
+object _9_negated extends Run(Test, "-variants", "negated", "examples/9.smt2")
+
 object _9_variants extends Run(Test, "-variants", "cases", "examples/9.smt2")
 
 object list_defs extends Run(Test, "-fuse", "examples/list-defs.smt2")
@@ -63,6 +65,11 @@ object Test extends Main {
     for (file <- files) {
       val (dfs, cmds, st) = read(file)
       val lemma = new Lemma(st, cfg)
+      println(file)
+
+      val goals =
+        for ((Assert(Not(phi))) <- cmds)
+          yield phi
 
       println("normalizing definitions...")
       lemma.addOriginal(dfs)
@@ -76,6 +83,7 @@ object Test extends Main {
       println("synthesizing lemmas...")
       lemma.generateLemmas()
 
+      dump(out, "goals", goals)
       dump(out, "lemmas", lemma.lemmas.reverse)
       // dump(out, "definitions", lemma.definitions.reverse.flatMap(_.rules))
       dump(out, "recovery", lemma.recovery)

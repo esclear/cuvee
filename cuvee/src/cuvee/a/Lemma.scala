@@ -95,13 +95,15 @@ class Lemma(st: State, cfg: Config) extends Database {
       }
     }
 
-    // if (cfg.variants contains "negated") {
-    //   if (df.typ == Sort.bool) {
-    //     val (df_neg, eq) = Variant.negated(df)
-    //     normalize_(df_neg, false)
-    //     // recoverBy(eq)
-    //   }
-    // }
+    if (cfg.variants contains "negated") {
+      if (df.typ == Sort.bool) {
+        for(eq <- Variant.negated(df))
+          println(eq)
+        // for(df_neg_ <- df_neg)
+        //   normalize_(df_neg_, false)
+        // recoverBy(eq)
+      }
+    }
   }
 
   def generateVariants() {
@@ -119,41 +121,50 @@ class Lemma(st: State, cfg: Config) extends Database {
   def generateLemmas() {
     for (
       (lhs, rhs) <- equations;
-      (ty, su, lhs_) <- instances(lhs);
-      rhs_ <- recover(rhs subst (ty, su))
-    ) (lhs, rhs_) match {
-      case (_, `lhs`) =>
+      (ty, su, lhs_) <- instances(lhs)
+    ) {
+      // println("  " + lhs + " for " + su)
+      for (rhs_ <- recover(rhs subst (ty, su))) (lhs, rhs_) match {
+        case (_, `lhs`) =>
 
-      case _ =>
-        val eq = Rule(lhs, rhs_)
-        // println("  " + eq.fun)
-        lemmas = eq :: lemmas
+        case _ =>
+          val eq = Rule(lhs, rhs_)
+          // println("  " + eq.fun)
+          lemmas = eq :: lemmas
+      }
     }
 
     for (
       (lhs, rhs, cond) <- formulas;
-      (ty, su, lhs_) <- instances(lhs);
-      lhs__ <- recover(lhs_);
-      rhs_ <- recover(rhs subst (ty, su));
-      cond_ <- recover(cond subst (ty, su))
-    ) (lhs__, rhs_, cond_) match {
-      case (_, True, `lhs__`)     =>
-      case (_, False, Not(`lhs`)) =>
-      case _ =>
-        val eq = Rule(lhs__, rhs_, cond_)
-        lemmas = eq :: lemmas
-      // println("recovered: " + eq)
-      // if(ty.nonEmpty)
-      //   println("  ty:    " + ty)
-      // if(su.nonEmpty)
-      //   println("  su:    " + su)
-      // println("  lhs:   " + lhs)
-      // println("  lhs':  " + lhs_)
-      // println("  lhs\":  " + lhs__)
-      // println("  rhs:   " + rhs)
-      // println("  rhs':  " + rhs_)
-      // println("  cond:  " + cond)
-      // println("  cond': " + cond_)
+      (ty, su, lhs_) <- instances(lhs)
+    ) {
+      // println("  " + lhs + " for " + su)
+      for (
+        lhs__ <- recover(lhs_);
+        rhs_ <- recover(rhs subst (ty, su));
+        cond_ <- recover(cond subst (ty, su))
+      ) (lhs__, rhs_, cond_) match {
+        case (_, True, `lhs__`)     =>
+        case (_, False, Not(`lhs`)) =>
+        case _ =>
+          val eq = Rule(lhs__, rhs_, cond_)
+          if(!(lemmas contains eq))
+            lemmas = eq :: lemmas
+          // else
+            // println("  duplicate: " + eq)
+        // println("recovered: " + eq)
+        // if(ty.nonEmpty)
+        //   println("  ty:    " + ty)
+        // if(su.nonEmpty)
+        //   println("  su:    " + su)
+        // println("  lhs:   " + lhs)
+        // println("  lhs':  " + lhs_)
+        // println("  lhs\":  " + lhs__)
+        // println("  rhs:   " + rhs)
+        // println("  rhs':  " + rhs_)
+        // println("  cond:  " + cond)
+        // println("  cond': " + cond_)
+      }
     }
   }
 

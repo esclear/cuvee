@@ -3,31 +3,6 @@ package cuvee.a
 import cuvee.pure._
 
 object Unused {
-  def main(args: Array[String]) {
-    import Fun._
-
-    val f = Fun("f", List(a, b), List(b, list_a), list_a)
-    val x = Var("x", a)
-    val y = Var("y", b)
-    val xs = Var("xs", list_a)
-
-    val nil_ = Const(nil, list_a)
-
-    val df = Def(
-      f,
-      List(
-        C(List(y, nil_), Nil, nil_),
-        C(List(y, cons(x, xs)), Nil, cons(x, f(y, xs)))
-      )
-    )
-
-    for ((df_, eq) <- unused(df)) {
-      println(df_)
-      println()
-      println(eq)
-    }
-  }
-
   def unused(df: Def): Option[(Def, Rule)] = {
     val Def(f, cases) = df
 

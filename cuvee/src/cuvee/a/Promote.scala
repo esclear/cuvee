@@ -4,8 +4,7 @@ import cuvee.StringOps
 import cuvee.backtrack
 import cuvee.toControl
 import cuvee.pure._
-import cuvee.smtlib.DeclareFun
-import cuvee.smtlib.Assert
+import cuvee.smtlib._
 
 case class Query(typ: Type, funs: List[Fun], base: Expr, conds: List[Expr]) {
   def constraints = base :: conds
@@ -33,45 +32,6 @@ case class Query(typ: Type, funs: List[Fun], base: Expr, conds: List[Expr]) {
 }
 
 object Promote {
-  def main(args: Array[String]) {
-    // val as = List(1, 2, 3)
-    // for (bs <- powerset(as))
-    //   println(bs)
-
-    import Fun._
-
-    val length = Fun("length'", List(a), List(list_a, Sort.int), Sort.int)
-    val x = Var("x", a)
-    val n = Var("n", Sort.int)
-    val xs = Var("xs", list_a)
-
-    val nil_ = Const(nil, list_a)
-
-    val df = Def(
-      length,
-      List(
-        C(List(nil_, n), Nil, n),
-        C(List(cons(x, xs), n), Nil, length(xs, n) + One)
-      )
-    )
-
-    println(df)
-    println()
-
-    for ((q, df_, eq) <- maybeResults(df)) {
-      println("exists")
-      for (f <- q.funs)
-        println("  " + f)
-      println("where")
-      for (c <- q.constraints)
-        println("  " + c)
-      println("such that")
-      println("  " + eq)
-      println()
-      println(df_)
-    }
-  }
-
   def abstracted(
       f: Fun,
       exprs: List[Expr]
@@ -156,7 +116,7 @@ object Promote {
               case x: Var if args contains x =>
                 val j = args indexOf x
 
-                val c = Fun("c", params, Nil, typ)
+                val c = Fun("phi", params, Nil, typ)
                 val c_ = Const(c, typ)
 
                 val lhs = c_
@@ -299,5 +259,9 @@ object Promote {
       eqs <- builtin(q, typ, base, fun)
     )
       yield eqs
+  }
+
+  def query(q: Query, cmds: List[Cmd], defs: List[Def]): List[List[Rule]] = {
+    ???
   }
 }

@@ -4,40 +4,6 @@ import cuvee.pure._
 import cuvee.StringOps
 
 object Variant {
-  def main(args: Array[String]) {
-    // val as = List(1, 2, 3)
-    // for (bs <- powerset(as))
-    //   println(bs)
-
-    import Fun._
-
-    val remove = Fun("remove", List(a), List(a, list_a), list_a)
-    val x = Var("x", a)
-    val y = Var("y", a)
-    val xs = Var("xs", list_a)
-
-    val nil_ = Const(nil, list_a)
-
-    val df = Def(
-      remove,
-      List(
-        C(List(y, nil_), Nil, nil_),
-        C(List(y, cons(x, xs)), List(x === y), remove(y, xs)),
-        C(List(y, cons(x, xs)), List(x !== y), cons(x, remove(y, xs)))
-      )
-    )
-
-    for ((dp, df, eq) <- restricted(df)) {
-      println(eq)
-      println()
-      println(dp)
-      println()
-      println(df)
-      println()
-      println()
-    }
-  }
-
   /* def boolean(f: Fun, f_ : Fun, expr: Expr, negate: Boolean): Expr = {
     expr match {
       case True  => if (negate) False else True
@@ -68,8 +34,6 @@ object Variant {
     exprs map (boolean(f, f_, _, negate))
   }
 
-  // this does not work that great,
-  // the issue lies within the guard instead, cf.   remove'_pre₁'? vs contains'
   def negated(df: Def): (Def, Rule) = {
     val Def(f, cases) = df
     require(
@@ -88,6 +52,35 @@ object Variant {
 
     (df_, eq)
   } */
+
+  def canNegate(f: Fun, cs: C) = cs match {
+    case C(args, guard, x: Var) =>
+      args contains x
+    case C(args, guard, App(Inst(`f`, _), _)) =>
+      true
+    case _ =>
+      false
+  }
+
+  def negated(df: Def): Option[Rule] = {
+    val Def(f, cases) = df
+
+    if (cases forall (canNegate(f, _))) {
+      val xs = Expr.vars("x", f.args)
+
+      val is =
+        for (C(args, guard, x: Var) <- cases)
+          yield args indexOf x
+
+          // THIS SUCKS. We need to backchain on variations of original encodings, i.e.
+          // hook onto contains_(x₀, x₁, true, false) because it seems useful,
+          // but not onto contains_(x₀, x₁, false, true) because that already recovers...
+
+      ???
+    } else {
+      None
+    }
+  }
 
   def restricted(df: Def): List[(Def, Def, Rule)] = {
     val Def(f, cases) = df

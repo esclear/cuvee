@@ -140,7 +140,7 @@ object Known {
         val rhs = App(g, gm map xs)
         val eq = Rule(lhs, rhs, True)
 
-        println("representation: " + eq)
+        // println("representation: " + eq)
         Some(eq)
       } else {
         if (Def.hash(df) == Def.hash(dg)) {
@@ -169,9 +169,9 @@ object Known {
       gbody: Expr,
       su: Map[Param, Type]
   ): Boolean = {
-    println("checking ")
-    println(fargs.mkString(" ") + ". " + fbody)
-    println(gargs.mkString(" ") + ". " + gbody)
+    // println("checking ")
+    // println(fargs.mkString(" ") + ". " + fbody)
+    // println(gargs.mkString(" ") + ". " + gbody)
 
     var ok = true
     var re: Map[Var, Var] = Map()

@@ -3,31 +3,6 @@ package cuvee.a
 import cuvee.pure._
 
 object Hoist {
-  def main(args: Array[String]) {
-    import Fun._
-
-    val snoc = Fun("snoc", List(a), List(list_a, a), list_a)
-    val x = Var("x", a)
-    val y = Var("y", a)
-    val xs = Var("xs", list_a)
-
-    val nil_ = Const(nil, list_a)
-
-    val df = Def(
-      snoc,
-      List(
-        C(List(nil_, y), Nil, cons(y, nil_)),
-        C(List(cons(x, xs), y), Nil, cons(x, snoc(xs, y)))
-      )
-    )
-
-    for ((df_, eq) <- static(df)) {
-      println(df_)
-      println()
-      println(eq)
-    }
-  }
-
   def static(df: Def): Option[(Def, Rule)] = {
     val Def(f, cases) = df
 
