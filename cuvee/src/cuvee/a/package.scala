@@ -5,6 +5,7 @@ import cuvee.pure._
 import cuvee.smtlib._
 import java.io.PrintStream
 import java.io.FileOutputStream
+import cuvee.sexpr.Syntax
 
 package object a {
   def fused(index: Int)(name1: String, name2: String) = name1 + "_" + index + "_" + name2
@@ -49,6 +50,22 @@ package object a {
         }
 
     (dfs.toList, cmds, st)
+  }
+
+  def dump(out: PrintStream, syntax: Syntax, comment: Boolean = false) {
+    for (line <- syntax.lines) {
+      if (comment)
+        out.print("; ")
+      out.println(line)
+    }
+    out.println()
+  }
+
+  def dump(out: PrintStream, section: String, stuff: List[Any]) {
+    out.println(section)
+    for (item <- stuff)
+      out.println("  " + item)
+    out.println()
   }
 
   def log(file: String) = {

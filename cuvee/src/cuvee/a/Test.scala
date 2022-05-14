@@ -28,6 +28,8 @@ object _9_variants extends Run(Test, "-variants", "cases", "examples/9.smt2")
 
 object list_defs extends Run(Test, "-fuse", "examples/list-defs.smt2")
 
+object _append extends Run(Test, "-promote", "examples/append.smt2")
+
 object list_defs_variants
     extends Run(Test, "-fuse", "-variants", "cases", "examples/list-defs.smt2")
 
@@ -40,6 +42,10 @@ object Test extends Main {
 
     case "-fuse" :: rest =>
       cfg.fuse = true
+      configure(cfg, rest)
+
+    case "-promote" :: rest =>
+      cfg.promote = true
       configure(cfg, rest)
 
     case "-variants" :: which :: rest =>
@@ -64,7 +70,7 @@ object Test extends Main {
 
     for (file <- files) {
       val (dfs, cmds, st) = read(file)
-      val lemma = new Lemma(st, cfg)
+      val lemma = new Lemma(cmds, dfs, st, cfg)
       println(file)
 
       val goals =
@@ -88,26 +94,10 @@ object Test extends Main {
       // dump(out, "definitions", lemma.definitions.reverse.flatMap(_.rules))
       dump(out, "recovery", lemma.recovery)
       dump(out, "normalization", lemma.normalization)
-      queries(lemma.promotion, lemma.definitions, cmds)
+      // queries(lemma.promotion, lemma.definitions, cmds)
 
       println("done")
     }
-  }
-
-  def dump(out: PrintStream, syntax: Syntax, comment: Boolean = false) {
-    for (line <- syntax.lines) {
-      if (comment)
-        out.print("; ")
-      out.println(line)
-    }
-    out.println()
-  }
-
-  def dump(out: PrintStream, section: String, stuff: List[Any]) {
-    out.println(section)
-    for (item <- stuff)
-      out.println("  " + item)
-    out.println()
   }
 
   def queries(

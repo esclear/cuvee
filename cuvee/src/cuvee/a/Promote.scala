@@ -5,6 +5,7 @@ import cuvee.backtrack
 import cuvee.toControl
 import cuvee.pure._
 import cuvee.smtlib._
+import cuvee.util.Tool
 
 case class Query(typ: Type, funs: List[Fun], base: Expr, conds: List[Expr]) {
   def constraints = base :: conds
@@ -261,7 +262,68 @@ object Promote {
       yield eqs
   }
 
-  def query(q: Query, cmds: List[Cmd], defs: List[Def]): List[List[Rule]] = {
-    ???
+  def query(
+      q: Query,
+      cmds: List[Cmd],
+      defs: List[Def],
+      st0: State
+  ): List[List[Rule]] = {
+    val tmp = log("query.smt2")
+
+    for (cmd @ DeclareSort(_, _) <- cmds) {
+      dump(tmp, cmd)
+    }
+
+    for (cmd @ DeclareDatatypes(_, _) <- cmds) {
+      dump(tmp, cmd)
+    }
+
+    val axioms =
+      for (df <- defs; cmd <- df.cmds)
+        yield cmd
+
+    for (cmd <- axioms)
+      dump(tmp, cmd)
+
+    for (cmd <- q.cmds)
+      dump(tmp, cmd)
+
+    tmp.close()
+
+    val skip = axioms.count {
+      case _: Assert => true
+      case _         => false
+    }
+
+    val (in, out, err, proc) =
+      Tool.pipe("./ind", "--defs", skip.toString, "query.smt2")
+
+    var line = out.readLine()
+    while (line != null && line != "model:") {
+      // println("< " + line)
+      line = out.readLine()
+    }
+
+    val st1 = st0.copy()
+
+    val from = cuvee.sexpr.parse(out)
+    // for (expr <- from; line <- expr.lines)
+    //   println("< " + line)
+
+    val res = cuvee.smtlib.parse(from, st1)
+
+    val eqs =
+      for (DefineFun(name, xs, res, rhs, false) <- res)
+        yield {
+          val fun = st1 funs name
+          val lhs = App(fun, xs)
+          val eq = Rule(lhs, rhs)
+          eq
+        }
+
+    println("solution: ")
+    for (eq <- eqs)
+      println(eq)
+    List(eqs)
   }
 }

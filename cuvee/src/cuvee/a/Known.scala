@@ -124,7 +124,7 @@ object Known {
               su
             )
 
-            println("  = " + res)
+            // println("  = " + res)
             res
           } or {
             false
@@ -182,7 +182,7 @@ object Known {
       case (App(Inst(f, fs), as), App(Inst(g, gs), bs)) if f == g =>
         renames(as, bs)
       case _ =>
-        println("no match: " + a + " != " + b)
+        // println("no match: " + a + " != " + b)
         ok = false
     }
 

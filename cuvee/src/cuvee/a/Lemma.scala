@@ -2,13 +2,16 @@ package cuvee.a
 
 import cuvee.pure._
 import java.io.PrintStream
+import cuvee.smtlib.Cmd
 
 class Config {
   var fuse = false
+  var promote = false
   var variants: Set[String] = Set()
 }
 
-class Lemma(st: State, cfg: Config) extends Database {
+class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
+    extends Database {
 
   var lemmas: List[Rule] = Nil
   var promotion: List[(Fun, Query, Def, Rule)] = Nil
@@ -56,31 +59,35 @@ class Lemma(st: State, cfg: Config) extends Database {
     for ((q, df_, eq) <- Promote.results(df)) {
       promotion = (df.fun, q, df_, eq) :: promotion
 
-      val possible = Promote.builtin(q)
-      for ((res, i) <- possible.zipWithIndex) {
-        val rws = res.groupBy(_.fun)
+      if (cfg.promote) {
+        val possible = Promote.query(q, cmds, defs, st)
+        for ((res, i) <- possible.zipWithIndex) {
+          val rws = res.groupBy(_.fun)
 
-        val Def(f_, cs) = df_
-        val f__ = f_ rename indexed(i)
-        val cs_ =
-          for (C(args, guard, body) <- cs)
-            yield {
-              val args_ = Rewrite.rewrites(args, rws)
-              val guard_ = Rewrite.rewrites(guard, rws)
-              val body_ = Rewrite.rewrite(body, rws)
-              C(args_, guard_, body_ replace (f_, f__))
-            }
+          val Def(f_, cs) = df_
+          val f__ = f_ rename indexed(i)
+          val cs_ =
+            for (C(args, guard, body) <- cs)
+              yield {
+                val args_ = Rewrite.rewrites(args, rws)
+                val guard_ = Rewrite.rewrites(guard, rws)
+                val body_ = Rewrite.rewrite(body, rws)
+                C(args_, guard_, body_ replace (f_, f__))
+              }
 
-        val df__ = Def(f__, cs_)
-        // println(df__)
-        normalize_(df__, false)
+          val df__ = Def(f__, cs_)
+          // println(df__)
+          normalize_(df__, false)
 
-        val rhs_ = eq.rhs replace (f_, f__)
-        val eq_ = Rewrite.rewrite(eq copy (rhs = rhs_), rws)
-        // println("  promotion: " + eq_)
-        // println("  " + eq_ + " (after normalizing)")
-        // unfoldOnceBy(eq_)
-        rewriteBy(eq_)
+          println("  rewrites:  " + rws)
+
+          val rhs_ = eq.rhs replace (f_, f__)
+          val eq_ = Rewrite.rewrite(eq copy (rhs = rhs_), rws)
+          println("  promotion: " + eq_)
+          println("             " + eq_ + " (after normalizing)")
+          // unfoldOnceBy(eq_)
+          rewriteBy(eq_)
+        }
       }
     }
   }
@@ -97,7 +104,7 @@ class Lemma(st: State, cfg: Config) extends Database {
 
     if (cfg.variants contains "negated") {
       if (df.typ == Sort.bool) {
-        for(eq <- Variant.negated(df))
+        for (eq <- Variant.negated(df))
           println(eq)
         // for(df_neg_ <- df_neg)
         //   normalize_(df_neg_, false)
@@ -148,10 +155,10 @@ class Lemma(st: State, cfg: Config) extends Database {
         case (_, False, Not(`lhs`)) =>
         case _ =>
           val eq = Rule(lhs__, rhs_, cond_)
-          if(!(lemmas contains eq))
+          if (!(lemmas contains eq))
             lemmas = eq :: lemmas
-          // else
-            // println("  duplicate: " + eq)
+        // else
+        // println("  duplicate: " + eq)
         // println("recovered: " + eq)
         // if(ty.nonEmpty)
         //   println("  ty:    " + ty)
