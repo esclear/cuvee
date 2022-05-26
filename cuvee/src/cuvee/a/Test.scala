@@ -29,6 +29,7 @@ object _9_variants extends Run(Test, "-variants", "cases", "examples/9.smt2")
 object list_defs extends Run(Test, "-fuse", "examples/list-defs.smt2")
 
 object _append extends Run(Test, "-promote", "examples/append.smt2")
+object _contains extends Run(Test, "-promote", "examples/contains.smt2")
 
 object list_defs_variants
     extends Run(Test, "-fuse", "-variants", "cases", "examples/list-defs.smt2")

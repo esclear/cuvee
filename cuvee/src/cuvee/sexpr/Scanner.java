@@ -690,7 +690,7 @@ public class Scanner {
 
       if (zzInput == YYEOF && zzStartRead == zzCurrentPos) {
         zzAtEOF = true;
-          {     return Expr.eof();
+          {     return Tok.eof();
  }
       }
       else {
@@ -711,12 +711,12 @@ public class Scanner {
             // fall through
           case 15: break;
           case 4:
-            { return Expr.lp();
+            { return Tok.lp();
             }
             // fall through
           case 16: break;
           case 5:
-            { return Expr.rp();
+            { return Tok.rp();
             }
             // fall through
           case 17: break;

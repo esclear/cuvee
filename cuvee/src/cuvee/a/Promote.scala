@@ -262,6 +262,33 @@ object Promote {
       yield eqs
   }
 
+  val predefined = 8 -> """
+(declare-fun $0 () Int)
+(declare-fun $1 () Int)
+(declare-fun $true () Bool)
+(declare-fun $false () Bool)
+
+(axiom (= $0 0))
+(axiom (= $1 1))
+(axiom (= $false false))
+(axiom (= $true true))
+
+(declare-fun $+   (Int Int) Int)
+(declare-fun $*   (Int Int) Int)
+(declare-fun $or  (Bool Bool) Bool)
+(declare-fun $and (Bool Bool) Bool)
+
+(axiom (forall ((x Int) (y Int))
+  (= ($+ x y)   (+ x y))))
+(axiom (forall ((x Int) (y Int))
+  (= ($* x y)   (* x y))))
+(axiom (forall ((x Bool) (y Bool))
+  (= ($or x y)  (or x y))))
+(axiom (forall ((x Bool) (y Bool))
+  (= ($and x y) (and x y))))
+
+"""
+
   def query(
       q: Query,
       cmds: List[Cmd],
@@ -285,19 +312,25 @@ object Promote {
     for (cmd <- axioms)
       dump(tmp, cmd)
 
+    val (m, text) = predefined
+      tmp.print(text)
+
     for (cmd <- q.cmds)
       dump(tmp, cmd)
 
     tmp.close()
 
-    val skip = axioms.count {
+    val n = axioms.count {
       case _: Assert => true
       case _         => false
     }
 
+    val skip = m + n
+
     val (in, out, err, proc) =
       Tool.pipe("./ind", "--defs", skip.toString, "query.smt2")
 
+    // XXX: this needs to be repeated, perhaps
     var line = out.readLine()
     while (line != null && line != "model:") {
       // println("< " + line)
