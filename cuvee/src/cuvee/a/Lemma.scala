@@ -60,7 +60,7 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
       promotion = (df.fun, q, df_, eq) :: promotion
 
       if (cfg.promote) {
-        val possible = Promote.query(q, cmds, defs, st)
+        val possible = Promote.query(q, df_, eq, cmds, defs, st)
         for ((res, i) <- possible.zipWithIndex) {
           val rws = res.groupBy(_.fun)
 
@@ -76,7 +76,7 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
               }
 
           val df__ = Def(f__, cs_)
-          // println(df__)
+          println(df__)
           normalize_(df__, false)
 
           println("  rewrites:  " + rws)
@@ -87,6 +87,8 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
           println("             " + eq_ + " (after normalizing)")
           // unfoldOnceBy(eq_)
           rewriteBy(eq_)
+          println()
+          println()
         }
       }
     }

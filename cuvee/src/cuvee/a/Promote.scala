@@ -6,6 +6,9 @@ import cuvee.toControl
 import cuvee.pure._
 import cuvee.smtlib._
 import cuvee.util.Tool
+import java.io.File
+import scala.io.Source
+import java.io.StringReader
 
 case class Query(typ: Type, funs: List[Fun], base: Expr, conds: List[Expr]) {
   def constraints = base :: conds
@@ -106,13 +109,19 @@ object Promote {
       for ((i, k) <- is) yield {
         val f_ = Fun(promoted(i)(f.name), f.params, f.args, f.res)
 
+        sealed trait P
+        case object Tail extends P
+        case class Base(pos: Int, arg: Expr) extends P
+        case class Arg(pos: Int, arg: Expr, fun: Fun, phi: Expr) extends P
+        case class Rec(fun: Fun, phi: Expr) extends P
+
         val stuff =
           for ((cs @ C(args, guard, body), k) <- cases.zipWithIndex)
             yield body match {
               case x: Var if i == k =>
                 assert(args contains x) // guaranteed from earlier
                 val j = args indexOf x
-                (cs, None, Some(j -> b_))
+                (cs, Base(j, b_))
 
               case x: Var if args contains x =>
                 val j = args indexOf x
@@ -124,13 +133,13 @@ object Promote {
                 val rhs = ⊕(c_, z)
                 val cond = Forall(List(z), lhs === rhs)
 
-                (cs, Some(c -> cond), Some(j -> c_))
+                (cs, Arg(j, c_, c, cond))
 
               // tail recursive case is irrelevant
               case App(Inst(`f`, su), as) =>
                 val body_ = App(Inst(f_, su), as)
                 val cs_ = C(args, guard, body_)
-                (cs_, None, None)
+                (cs_, Tail)
 
               // case _ if cs.isRecursive(f) =>
               case _ =>
@@ -154,27 +163,55 @@ object Promote {
                 val bs_ = es map { App(f_, _) }
                 val φ_ = App(φ, xs ++ bs_)
                 val cs_ = C(args, guard, φ_)
-                (cs_, Some(φ -> cond), None)
+
+                (cs_, Rec(φ, cond))
 
               // case _ =>
               //   backtrack("cannot promote " + f + ", base not hoisted: " + body)
             }
 
-        val (cases_, stuff_, js_) = stuff.unzip3
-        val (φs, conds) = stuff_.flatten.unzip
-        val js = js_.flatten.toMap // can only a single result
+        val (cases_, ps_) = stuff.unzip
+
+        val φs = ps_ flatMap {
+          case p: Arg => Some(p.fun)
+          case p: Rec => Some(p.fun)
+          case _      => None
+        }
+
+        val conds = ps_ flatMap {
+          case p: Arg => Some(p.phi)
+          case p: Rec => Some(p.phi)
+          case _      => None
+        }
+
+        val is = Map(ps_ flatMap {
+          case p: Arg => Some(p.pos -> p.arg)
+          case _      => None
+        }: _*)
+
+        val js =  Map(ps_ flatMap {
+          case p: Arg  => Some(p.pos -> p.arg)
+          case p: Base => Some(p.pos -> p.arg)
+          case _       => None
+        }: _*)
 
         val q = Query(typ, b :: ⊕ :: φs, base, conds)
         val df_ = Def(f_, cases_)
 
         val ys =
+          for ((x, i) <- xs.zipWithIndex)
+            yield
+              if (is contains i) js(i)
+              else x
+
+        val zs =
           for ((x, j) <- xs.zipWithIndex)
             yield
               if (js contains j) js(j)
               else x
 
         val xk = xs(k)
-        val eq = Rule(App(f, xs), ⊕(App(f_, ys), xk), True, List(xk -> b_))
+        val eq = Rule(App(f, ys), ⊕(App(f_, zs), xk), True, List(xk -> b_))
 
         (q, df_, eq)
       }
@@ -262,40 +299,56 @@ object Promote {
       yield eqs
   }
 
-  val predefined = 8 -> """
-(declare-fun $0 () Int)
-(declare-fun $1 () Int)
-(declare-fun $true () Bool)
-(declare-fun $false () Bool)
+  /*
+(assert (= $0 0))
+(assert (= $1 1))
+(assert (= $false false))
+(assert (= $true true))
+   */
 
-(axiom (= $0 0))
-(axiom (= $1 1))
-(axiom (= $false false))
-(axiom (= $true true))
+  val predefined = List(
+    "(declare-fun $0 () Int)",
+    "(declare-fun $1 () Int)",
+    "(declare-fun $true () Bool)",
+    "(declare-fun $false () Bool)",
+    "(assert (forall ((x Int)) (= $0 0)))",
+    "(assert (forall ((x Int)) (= $1 1)))",
+    "(assert (forall ((x Int)) (= $false false)))",
+    "(assert (forall ((x Int)) (= $true true)))",
+    "(declare-fun $+   (Int Int) Int)",
+    "(declare-fun $*   (Int Int) Int)",
+    "(declare-fun $or  (Bool Bool) Bool)",
+    "(declare-fun $and (Bool Bool) Bool)",
+    "(assert (forall ((x Int) (y Int))   (= ($+ x y)   (+ x y))))",
+    "(assert (forall ((x Int) (y Int))   (= ($* x y)   (* x y))))",
+    "(assert (forall ((x Bool) (y Bool)) (= ($or x y)  (or x y))))",
+    "(assert (forall ((x Bool) (y Bool)) (= ($and x y) (and x y))))"
+  )
 
-(declare-fun $+   (Int Int) Int)
-(declare-fun $*   (Int Int) Int)
-(declare-fun $or  (Bool Bool) Bool)
-(declare-fun $and (Bool Bool) Bool)
-
-(axiom (forall ((x Int) (y Int))
-  (= ($+ x y)   (+ x y))))
-(axiom (forall ((x Int) (y Int))
-  (= ($* x y)   (* x y))))
-(axiom (forall ((x Bool) (y Bool))
-  (= ($or x y)  (or x y))))
-(axiom (forall ((x Bool) (y Bool))
-  (= ($and x y) (and x y))))
-
-"""
+  val renaming = Map(
+    "$0" -> cuvee.sexpr.Lit.num("0"),
+    "$1" -> cuvee.sexpr.Lit.num("1"),
+    "$true" -> cuvee.sexpr.Id("true"),
+    "$false" -> cuvee.sexpr.Id("false"),
+    "$+" -> cuvee.sexpr.Id("true"),
+    "$*" -> cuvee.sexpr.Id("false"),
+    "$or" -> cuvee.sexpr.Id("or"),
+    "$and" -> cuvee.sexpr.Id("and")
+  )
 
   def query(
       q: Query,
+      df_ : Def,
+      eq: Rule,
       cmds: List[Cmd],
       defs: List[Def],
       st0: State
   ): List[List[Rule]] = {
-    val tmp = log("query.smt2")
+    val dir = "queries/"
+    new File(dir).mkdirs()
+
+    val file = dir + df_.fun.name + ".smt2"
+    val tmp = log(file)
 
     for (cmd @ DeclareSort(_, _) <- cmds) {
       dump(tmp, cmd)
@@ -312,13 +365,28 @@ object Promote {
     for (cmd <- axioms)
       dump(tmp, cmd)
 
-    val (m, text) = predefined
-      tmp.print(text)
+    for (cmd <- predefined)
+      tmp.println(cmd)
+    tmp.println()
+
+    tmp.println("; query for " + df_.fun.name)
+    tmp.println()
 
     for (cmd <- q.cmds)
       dump(tmp, cmd)
+    tmp.println()
+
+    for (cmd <- df_.cmds)
+      dump(tmp, cmd, true)
+
+    tmp.println("; lemma ")
+    dump(tmp, eq, true)
 
     tmp.close()
+
+    val m = predefined.count { line =>
+      line.startsWith(("(assert"))
+    }
 
     val n = axioms.count {
       case _: Assert => true
@@ -328,35 +396,43 @@ object Promote {
     val skip = m + n
 
     val (in, out, err, proc) =
-      Tool.pipe("./ind", "--defs", skip.toString, "query.smt2")
+      Tool.pipe("./ind", "--defs", skip.toString, file)
 
-    // XXX: this needs to be repeated, perhaps
+    var solutions: List[List[Rule]] = Nil
+
     var line = out.readLine()
-    while (line != null && line != "model:") {
-      // println("< " + line)
-      line = out.readLine()
-    }
+    while (line != null) {
+      while (line != null && line != "model:") {
+        line = out.readLine()
+      }
 
-    val st1 = st0.copy()
-
-    val from = cuvee.sexpr.parse(out)
-    // for (expr <- from; line <- expr.lines)
-    //   println("< " + line)
-
-    val res = cuvee.smtlib.parse(from, st1)
-
-    val eqs =
-      for (DefineFun(name, xs, res, rhs, false) <- res)
-        yield {
-          val fun = st1 funs name
-          val lhs = App(fun, xs)
-          val eq = Rule(lhs, rhs)
-          eq
+      if (line == "model:") {
+        line = out.readLine()
+        var text = new StringBuilder
+        while (line != null && line.strip.nonEmpty) {
+          text append line
+          line = out.readLine()
         }
 
-    println("solution: ")
-    for (eq <- eqs)
-      println(eq)
-    List(eqs)
+        val st1 = st0.copy()
+        val reader = new StringReader(text.toString)
+        val from = cuvee.sexpr.parse(reader)
+        val from_ = from map (_ replace renaming)
+        val res = cuvee.smtlib.parse(from_, st1)
+
+        val eqs =
+          for (DefineFun(name, xs, res, rhs, false) <- res)
+            yield {
+              val fun = st1 funs name
+              val lhs = App(fun, xs)
+              val eq = Rule(lhs, rhs)
+              eq
+            }
+
+        solutions = eqs :: solutions
+      }
+    }
+
+    solutions
   }
 }
