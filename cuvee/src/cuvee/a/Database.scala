@@ -7,6 +7,8 @@ class Database {
   var generalized: Set[Fun] = Set()
   var replaced: Set[Fun] = Set()
 
+  var identities: List[Def] = Nil
+  var templates: List[Rule] = Nil
   var definitions: List[Def] = Nil
   var normalization: List[Rule] = Nil
   var recovery: List[Rule] = Nil
@@ -14,10 +16,11 @@ class Database {
 
 //   var recognized: List[(String, String)] = Nil
 
-  def internalize(ty: Sort, dt: Datatype) {
+  def internalize(ty: Sort, dt: Datatype) = {
     val (df, eq) = Cleanup.identityFor(ty, dt)
-    definitions = df :: definitions
-    normalization = eq :: normalization
+    identities = df :: identities
+    templates = eq :: templates
+    eq
   }
 
   // add a definition to the database as is, possibly merging it with existing ones,
@@ -27,7 +30,7 @@ class Database {
   def internalize(df: Def, keep: Boolean) = {
     val f = df.fun
 
-    for (eq <- _known(df, definitions)) {
+    for ((su, eq) <- _known(df, definitions)) {
       if (keep) {
         require(
           eq.canFlip,
@@ -42,7 +45,6 @@ class Database {
     if (!replaced(f)) {
       definitions = df :: definitions
       normalization = df.rules ++ normalization
-      // println("  keeping " + f)
       true
     } else {
       false
@@ -125,19 +127,22 @@ class Database {
   //   Def(f, cs_)
   // }
 
-  def instances(e: Expr): List[(Map[Param, Type], Map[Var, Expr], Expr)] = {
+  def instances(e: Expr, patterns: List[Expr]): List[(Map[Param, Type], Map[Var, Expr], Expr)] = {
     val e_ = normalized(e)
 
-    val res = for (r <- recovery) yield try {
-      val (ty, su) = Expr.bind(e_, r.lhs)
+    val res = for (p <- patterns) yield try {
+      val (ty, su) = Expr.bind(e_, p)
       Some((ty, su, e_ subst (ty, su)))
     } catch {
-      case _: Backtrack =>
+      case e: Backtrack =>
+        println(e.message)
         None
     }
 
-    val std = (Map[Param, Type](), Map[Var, Expr](), e_)
-    std :: res.flatten
+    // TODO: check why this!
+    // val std = (Map[Param, Type](), Map[Var, Expr](), e_)
+    // std :: res.flatten
+    res.flatten
   }
 
   // find equivalence class of e
@@ -145,12 +150,13 @@ class Database {
     val rws1 = normalization.groupBy(_.fun)
     // val rws2 = unfoldOnce.groupBy(_.fun) // assume these are not cyclic!
     val rws3 = recovery.groupBy(_.fun)
-    // println("  0. " + e0)
+    println("  0. " + e0)
     val e1 = Rewrite.rewrite(e0, rws1)
-    // println("  1. " + e1)
+    println("  1. " + e1)
     // val e2 = Rewrite.rewrite(e1, rws2)
     // println("  2. " + e2)
     val es3 = Rewrite.rewriteAll(e1, rws3)
+    println("  3. " + es3)
     // println()
     es3
   }

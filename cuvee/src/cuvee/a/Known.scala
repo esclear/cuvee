@@ -3,6 +3,7 @@ package cuvee.a
 import arse.Control
 import cuvee.pure._
 import cuvee.backtrack
+import arse.Backtrack
 
 object Known {
   def main(args: Array[String]) {}
@@ -74,7 +75,7 @@ object Known {
   }
 
   // dg is known already and we want to check whether df matches
-  def known(df: Def, dg: Def): Option[Rule] = {
+  def known(df: Def, dg: Def): Option[(Map[Param, Type], Rule)] = {
     if (
       df.fun != dg.fun &&
       df.fun.args.length == dg.fun.args.length &&
@@ -102,15 +103,16 @@ object Known {
       }
       val (ftypes, fp) = F.unzip
       val (gtypes, gp) = G.unzip
-      val ok_ =
-        (fcases_ zip gcases_) forall { case (cf, cg) =>
-          {
-            val su = Type.binds(ftypes, g.res, gtypes, f.res, Map())
 
+      val ok_ = {
+        val su = Type.binds(gtypes, g.res, ftypes, f.res, Map())
+
+        val ok_ = (fcases_ zip gcases_) forall {
+          case (cf, cg) => {
             val C(fargs, fguard, fbody) = cf
             val C(gargs, gguard, gbody) = cg inst su
 
-            val res = ok(
+            ok(
               f,
               fp,
               fargs,
@@ -123,33 +125,34 @@ object Known {
               gbody,
               su
             )
-
-            // println("  = " + res)
-            res
-          } or {
-            false
           }
         }
 
-      if (ok_) {
-        val xs = Expr.vars("x", ftypes)
-        val fm = invert(fp)
-        val gm = invert(gp)
-
-        val lhs = App(f, fm map xs)
-        val rhs = App(g, gm map xs)
-        val eq = Rule(lhs, rhs, True)
-
-        // println("representation: " + eq)
-        Some(eq)
-      } else {
-        if (Def.hash(df) == Def.hash(dg)) {
-          println(
-            "  potentially missed equivalence " + f.name + " == " + g.name
-          )
-        }
-
+        if (ok_) Some(su) else None
+      } or {
         None
+      }
+
+      ok_ match {
+        case Some(su) =>
+          val xs = Expr.vars("x", ftypes)
+          val fm = invert(fp)
+          val gm = invert(gp)
+
+          val lhs = App(f, fm map xs)
+          val rhs = App(g, gm map xs)
+          val eq = Rule(lhs, rhs, True)
+
+          // println("representation: " + eq)
+          Some(su -> eq)
+        case None =>
+          if (Def.hash(df) == Def.hash(dg)) {
+            println(
+              "  potentially missed equivalence " + f.name + " == " + g.name
+            )
+          }
+
+          None
       }
     } else {
       None
@@ -182,7 +185,7 @@ object Known {
       case (App(Inst(f, fs), as), App(Inst(g, gs), bs)) if f == g =>
         renames(as, bs)
       case _ =>
-        // println("no match: " + a + " != " + b)
+        println("no match: " + a + " != " + b)
         ok = false
     }
 
@@ -211,10 +214,10 @@ object Known {
 
       ok = _fguard == _gguard && _fbody == _gbody
 
-      // if (!ok && _fguard != _gguard)
-      //   println("; guards different: " + _fguard + " and " + _gguard)
-      // if (!ok && _fbody != _gbody)
-      //   println("; bodies different: " + _fbody + " and " + _gbody)
+      if (!ok && _fguard != _gguard)
+        println("; guards different: " + _fguard + " and " + _gguard)
+      if (!ok && _fbody != _gbody)
+        println("; bodies different: " + _fbody + " and " + _gbody)
     }
 
     ok

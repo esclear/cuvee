@@ -12,12 +12,14 @@ object contains extends Run(Test, "examples/contains.smt2")
 object debug extends Run(Test, "examples/debug.smt2")
 
 object _0 extends Run(Test, "-fuse", "examples/0.smt2")
-object _1 extends Run(Test, "-fuse", "examples/1.smt2")
+object _1 extends Run(Test, "-fuse", "-promote", "examples/1.smt2")
 object _2 extends Run(Test, "-fuse", "examples/2.smt2")
+object _2_promote extends Run(Test, "-fuse", "-promote", "examples/2.smt2")
 object _2_variants
     extends Run(Test, "-fuse", "-variants", "cases", "examples/2.smt2")
 object _7 extends Run(Test, "-fuse", "-variants", "cases", "examples/7.smt2")
 object _8 extends Run(Test, "examples/8.smt2")
+object _8_promote extends Run(Test, "-fuse", "-promote", "examples/8.smt2")
 object _8_cases
     extends Run(Test, "-fuse", "-variants", "cases", "examples/8.smt2")
 object _8_cases_only extends Run(Test, "-variants", "cases", "examples/8.smt2")
@@ -26,11 +28,16 @@ object _9_negated extends Run(Test, "-variants", "negated", "examples/9.smt2")
 
 object _9_variants extends Run(Test, "-variants", "cases", "examples/9.smt2")
 
-object list_defs extends Run(Test, "-fuse", "examples/list-defs.smt2")
+object list_defs
+    extends Run(Test, "-fuse", "-promote", "examples/list-defs.smt2")
 
-object _append extends Run(Test, "-promote", "examples/append.smt2")
-object _contains extends Run(Test, "-promote", "examples/contains.smt2")
-object _length extends Run(Test, "-promote", "examples/length.smt2")
+object _append extends Run(Test, "examples/append.smt2")
+
+object _append_promote
+    extends Run(Test, "-fuse", "-promote", "examples/append.smt2")
+object _contains
+    extends Run(Test, "-fuse", "-promote", "examples/contains.smt2")
+object _length extends Run(Test, "-fuse", "-promote", "examples/length.smt2")
 
 object list_defs_variants
     extends Run(Test, "-fuse", "-variants", "cases", "examples/list-defs.smt2")
@@ -79,6 +86,9 @@ object Test extends Main {
         for ((Assert(Not(phi))) <- cmds)
           yield phi
 
+      println("seeding identity functions")
+      lemma.generateIdentities()
+
       println("normalizing definitions...")
       lemma.addOriginal(dfs)
 
@@ -94,6 +104,7 @@ object Test extends Main {
       dump(out, "goals", goals)
       dump(out, "lemmas", lemma.lemmas.reverse)
       // dump(out, "definitions", lemma.definitions.reverse.flatMap(_.rules))
+      dump(out, "templates", lemma.templates)
       dump(out, "recovery", lemma.recovery)
       dump(out, "normalization", lemma.normalization)
       // queries(lemma.promotion, lemma.definitions, cmds)

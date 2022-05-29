@@ -126,7 +126,7 @@ object Promote {
               case x: Var if args contains x =>
                 val j = args indexOf x
 
-                val c = Fun("phi", params, Nil, typ)
+                val c = Fun("phi" + k, params, Nil, typ)
                 val c_ = Const(c, typ)
 
                 val lhs = c_
@@ -189,7 +189,7 @@ object Promote {
           case _      => None
         }: _*)
 
-        val js =  Map(ps_ flatMap {
+        val js = Map(ps_ flatMap {
           case p: Arg  => Some(p.pos -> p.arg)
           case p: Base => Some(p.pos -> p.arg)
           case _       => None
@@ -330,8 +330,8 @@ object Promote {
     "$1" -> cuvee.sexpr.Lit.num("1"),
     "$true" -> cuvee.sexpr.Id("true"),
     "$false" -> cuvee.sexpr.Id("false"),
-    "$+" -> cuvee.sexpr.Id("true"),
-    "$*" -> cuvee.sexpr.Id("false"),
+    "$+" -> cuvee.sexpr.Id("+"),
+    "$*" -> cuvee.sexpr.Id("*"),
     "$or" -> cuvee.sexpr.Id("or"),
     "$and" -> cuvee.sexpr.Id("and")
   )
@@ -358,12 +358,41 @@ object Promote {
       dump(tmp, cmd)
     }
 
+    val decls =
+      for (df <- defs)
+        yield df.decl
+
+    for (cmd <- decls)
+      dump(tmp, cmd)
+
+    // don't reuse the function we are rewriting
     val axioms =
-      for (df <- defs; cmd <- df.cmds)
+      for (
+        df <- defs if df.fun != eq.fun;
+        cmd <- df.axioms
+      )
         yield cmd
 
-    for (cmd <- axioms)
-      dump(tmp, cmd)
+    val x = Var("x", Sort.int)
+
+    // for (cmd <- axioms)
+    //   dump(tmp, cmd)
+
+    for (cmd <- axioms) {
+      cmd match {
+        case Assert(_ @Forall(_, _)) =>
+          dump(tmp, cmd)
+
+        case Assert(phi) =>
+          val cmd_ = Assert(Forall(List(x), phi))
+          tmp println ("; DUMMY QUANTIFIER")
+          tmp println ("; PLEASE FIX THIS!!")
+          dump(tmp, cmd_)
+
+        case _ =>
+          dump(tmp, cmd)
+      }
+    }
 
     for (cmd <- predefined)
       tmp.println(cmd)
@@ -396,17 +425,21 @@ object Promote {
     val skip = m + n
 
     val (in, out, err, proc) =
-      Tool.pipe("./ind", "--defs", skip.toString, file)
+      Tool.pipe("./ind", "--to", "10", "--defs", skip.toString, file)
 
     var solutions: List[List[Rule]] = Nil
 
     var line = out.readLine()
     while (line != null) {
       while (line != null && line != "model:") {
+        if (line startsWith "replacing")
+          println(line)
         line = out.readLine()
       }
+      println()
 
       if (line == "model:") {
+        println("solved")
         line = out.readLine()
         var text = new StringBuilder
         while (line != null && line.strip.nonEmpty) {
@@ -415,10 +448,15 @@ object Promote {
         }
 
         val st1 = st0.copy()
-        val reader = new StringReader(text.toString)
-        val from = cuvee.sexpr.parse(reader)
+        val text_ = text.toString
+        val reader = new StringReader(text_)
+        val from = cuvee.trace("scanning:\n" + text_) {
+          cuvee.sexpr.parse(reader)
+        }
         val from_ = from map (_ replace renaming)
-        val res = cuvee.smtlib.parse(from_, st1)
+        val res = cuvee.trace("parsing:\n" + from_) {
+          cuvee.smtlib.parse(from_, st1)
+        }
 
         val eqs =
           for (DefineFun(name, xs, res, rhs, false) <- res)

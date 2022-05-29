@@ -46,7 +46,27 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
     Cleanup.constant(df) match {
       case None =>
         // println("  internalize: " + df.fun + " (keep = "  + keep + ")")
-        internalize(df, keep)
+        val kept = internalize(df, keep)
+
+        if (kept) {
+          // maybe recognize the identity function,
+          // such that we can push the lemma instance to the front
+          for (
+            (su, eq @ Rule(lhs, rhs, cond, avoid)) <- _known(df, identities)
+          ) {
+            for ((ty_, su_, rhs_) <- instances(rhs, templates map (_.lhs inst su))) {
+              val lhs_ = lhs subst su_
+              // TODO: this is ugly! cannot link the rhs directly via instances
+              val rw = templates.groupBy(_.fun)
+              val rhs__ = Rewrite.rewrite(rhs_, rw)
+              // println(lhs_ + " == " + rhs__)
+              val eq = Rule(lhs_, rhs__)
+              rewriteBy(eq)
+              lemmas = eq :: lemmas
+            }
+          }
+        }
+
       case Some(eq) =>
         replaceBy(eq)
     }
@@ -60,7 +80,15 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
       promotion = (df.fun, q, df_, eq) :: promotion
 
       if (cfg.promote) {
-        val possible = Promote.query(q, df_, eq, cmds, defs, st)
+        val possible =
+          try {
+            Promote.query(q, df_, eq, cmds, defs, st)
+          } catch {
+            case e: Exception =>
+              e.printStackTrace()
+              Nil
+          }
+
         for ((res, i) <- possible.zipWithIndex) {
           val rws = res.groupBy(_.fun)
 
@@ -115,6 +143,14 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
     }
   }
 
+  def generateIdentities() {
+    for ((name, dt) <- st.datatypes) {
+      val ty = st.sort(name, dt.params)
+      val Rule(lhs, rhs, True, Nil) = internalize(ty, dt)
+      // equations = (lhs, rhs) :: equations
+    }
+  }
+
   def generateVariants() {
     val todo = definitions
     for (df <- todo)
@@ -130,22 +166,26 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
   def generateLemmas() {
     for (
       (lhs, rhs) <- equations;
-      (ty, su, lhs_) <- instances(lhs)
+      (ty, su, lhs_) <- instances(lhs, recovery map (_.rhs))
     ) {
-      // println("  " + lhs + " for " + su)
-      for (rhs_ <- recover(rhs subst (ty, su))) (lhs, rhs_) match {
-        case (_, `lhs`) =>
+      // println("instantiating " + lhs + " == " + rhs)
+      // println("found match: " + ty + " and " + su)
+      // println("lhs_ = " + lhs_)
+      println()
+      for (rhs_ <- recover(rhs subst (ty, su)))
+        (lhs, rhs_) match {
+          case (_, `lhs`) =>
 
-        case _ =>
-          val eq = Rule(lhs, rhs_)
-          // println("  " + eq.fun)
-          lemmas = eq :: lemmas
-      }
+          case _ =>
+            val eq = Rule(lhs, rhs_)
+            // println("generated lemma instance: " + eq)
+            lemmas = eq :: lemmas
+        }
     }
 
     for (
       (lhs, rhs, cond) <- formulas;
-      (ty, su, lhs_) <- instances(lhs)
+      (ty, su, lhs_) <- instances(lhs, recovery map (_.rhs))
     ) {
       // println("  " + lhs + " for " + su)
       for (
