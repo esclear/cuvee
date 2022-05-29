@@ -54,7 +54,7 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
           for (
             (su, eq @ Rule(lhs, rhs, cond, avoid)) <- _known(df, identities)
           ) {
-            for ((ty_, su_, rhs_) <- instances(rhs, templates map (_.lhs inst su))) {
+            for ((ty_, su_, rhs_) <- instances(rhs, templates map (_.lhs inst su)) if su_.nonEmpty) {
               val lhs_ = lhs subst su_
               // TODO: this is ugly! cannot link the rhs directly via instances
               val rw = templates.groupBy(_.fun)
@@ -62,6 +62,7 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
               // println(lhs_ + " == " + rhs__)
               val eq = Rule(lhs_, rhs__)
               rewriteBy(eq)
+              println("(1) adding lemma: " + eq)
               lemmas = eq :: lemmas
             }
           }
@@ -179,6 +180,8 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
           case _ =>
             val eq = Rule(lhs, rhs_)
             // println("generated lemma instance: " + eq)
+
+              println("(2) adding lemma: " + eq)
             lemmas = eq :: lemmas
         }
     }
@@ -197,8 +200,11 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
         case (_, False, Not(`lhs`)) =>
         case _ =>
           val eq = Rule(lhs__, rhs_, cond_)
-          if (!(lemmas contains eq))
+          if (!(lemmas contains eq)) {
+
+              println("(3) adding lemma: " + eq)
             lemmas = eq :: lemmas
+          }
         // else
         // println("  duplicate: " + eq)
         // println("recovered: " + eq)

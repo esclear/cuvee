@@ -104,34 +104,36 @@ object Known {
       val (ftypes, fp) = F.unzip
       val (gtypes, gp) = G.unzip
 
-      val ok_ = {
-        val su = Type.binds(gtypes, g.res, ftypes, f.res, Map())
+      val ok_ =
+        try {
+          val su = Type.binds(gtypes, g.res, ftypes, f.res, Map())
 
-        val ok_ = (fcases_ zip gcases_) forall {
-          case (cf, cg) => {
-            val C(fargs, fguard, fbody) = cf
-            val C(gargs, gguard, gbody) = cg inst su
+          val ok_ = (fcases_ zip gcases_) forall {
+            case (cf, cg) => {
+              val C(fargs, fguard, fbody) = cf
+              val C(gargs, gguard, gbody) = cg inst su
 
-            ok(
-              f,
-              fp,
-              fargs,
-              fguard,
-              fbody,
-              g,
-              gp,
-              gargs,
-              gguard,
-              gbody,
-              su
-            )
+              ok(
+                f,
+                fp,
+                fargs,
+                fguard,
+                fbody,
+                g,
+                gp,
+                gargs,
+                gguard,
+                gbody,
+                su
+              )
+            }
           }
-        }
 
-        if (ok_) Some(su) else None
-      } or {
-        None
-      }
+          if (ok_) Some(su) else None
+        } catch {
+          case _: Backtrack =>
+            None
+        }
 
       ok_ match {
         case Some(su) =>
@@ -145,6 +147,7 @@ object Known {
 
           // println("representation: " + eq)
           Some(su -> eq)
+
         case None =>
           if (Def.hash(df) == Def.hash(dg)) {
             println(

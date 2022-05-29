@@ -135,14 +135,15 @@ class Database {
       Some((ty, su, e_ subst (ty, su)))
     } catch {
       case e: Backtrack =>
-        println(e.message)
         None
     }
 
     // TODO: check why this!
-    // val std = (Map[Param, Type](), Map[Var, Expr](), e_)
-    // std :: res.flatten
-    res.flatten
+    // Seems to be related to the discovery of lemmas
+    // from non-fused functions, e.g.: length(map(y₀, y₁)) = length(y₁)
+    val std = (Map[Param, Type](), Map[Var, Expr](), e_)
+    std :: res.flatten
+    // res.flatten
   }
 
   // find equivalence class of e
