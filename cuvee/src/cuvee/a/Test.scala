@@ -31,7 +31,7 @@ object _9_variants extends Run(Test, "-variants", "cases", "examples/9.smt2")
 object list_defs
     extends Run(Test, "-fuse", "-promote", "examples/list-defs.smt2")
 
-object _append extends Run(Test, "examples/append.smt2")
+object _append extends Run(Test, "-fuse", "examples/append.smt2")
 
 object _append_promote
     extends Run(Test, "-fuse", "-promote", "examples/append.smt2")
@@ -105,6 +105,8 @@ object Test extends Main {
       dump(out, "lemmas", lemma.lemmas.reverse)
       // dump(out, "definitions", lemma.definitions.reverse.flatMap(_.rules))
       dump(out, "templates", lemma.templates)
+      dump(out, "equations", lemma.equations)
+      dump(out, "formulas", lemma.formulas)
       dump(out, "recovery", lemma.recovery)
       dump(out, "normalization", lemma.normalization)
       // queries(lemma.promotion, lemma.definitions, cmds)

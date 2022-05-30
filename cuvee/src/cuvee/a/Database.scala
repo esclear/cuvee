@@ -143,7 +143,7 @@ class Database {
     // from non-fused functions, e.g.: length(map(y₀, y₁)) = length(y₁)
     val std = (Map[Param, Type](), Map[Var, Expr](), e_)
     std :: res.flatten
-    // res.flatten
+    res.flatten
   }
 
   // find equivalence class of e
