@@ -442,7 +442,7 @@ object Promote {
         println("solved")
         line = out.readLine()
         var text = new StringBuilder
-        while (line != null && line.strip.nonEmpty) {
+        while (line != null && line.trim.nonEmpty) {
           text append line
           line = out.readLine()
         }
