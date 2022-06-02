@@ -71,4 +71,7 @@ package object a {
   def log(file: String) = {
     new PrintStream(new FileOutputStream(file))
   }
+
+  /** The default printer to use: Prints s-expressions */
+  implicit val printer: cuvee.util.Printer = cuvee.sexpr.Printer
 }
