@@ -54,7 +54,10 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
           for (
             (su, eq @ Rule(lhs, rhs, cond, avoid)) <- _known(df, identities)
           ) {
-            for ((ty_, su_, rhs_) <- instances(rhs, templates map (_.lhs inst su)) if su_.nonEmpty) {
+            for (
+              (ty_, su_, rhs_) <- instances(rhs, templates map (_.lhs inst su))
+              if su_.nonEmpty
+            ) {
               val lhs_ = lhs subst su_
               // TODO: this is ugly! cannot link the rhs directly via instances
               val rw = templates.groupBy(_.fun)
@@ -165,6 +168,24 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
   }
 
   def generateLemmas() {
+    import cuvee.egraph._
+    val g = new EGraph
+
+    for ((lhs, rhs) <- equations) {
+      g.merge(lhs, rhs)
+    }
+
+    val rules = normalization ++ recovery
+    g.saturate(rules)
+
+    for ((c, i) <- g.classes.toList.zipWithIndex if c.nodes.size > 1) {
+      println("class " + i)
+      for (nd <- c.nodes)
+        println("  " + nd)
+    }
+  }
+
+  def generateLemmas_() {
     for (
       (lhs, rhs) <- equations;
       (ty, su, lhs_) <- instances(lhs, recovery map (_.rhs))
@@ -181,7 +202,7 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
             val eq = Rule(lhs, rhs_)
             // println("generated lemma instance: " + eq)
 
-              println("(2) adding lemma: " + eq)
+            println("(2) adding lemma: " + eq)
             lemmas = eq :: lemmas
         }
     }
@@ -201,8 +222,7 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
         case _ =>
           val eq = Rule(lhs__, rhs_, cond_)
           if (!(lemmas contains eq)) {
-
-              println("(3) adding lemma: " + eq)
+            println("(3) adding lemma: " + eq)
             lemmas = eq :: lemmas
           }
         // else
