@@ -7,6 +7,10 @@ import java.io.File
 import java.io.PrintStream
 import cuvee.sexpr.Syntax
 
+
+object _qreverse
+    extends Run(Test, "-fuse", "-promote", "examples/qreverse.smt2")
+
 object contains extends Run(Test, "examples/contains.smt2")
 
 object debug extends Run(Test, "examples/debug.smt2")
@@ -102,7 +106,7 @@ object Test extends Main {
       lemma.generateLemmas()
 
       dump(out, "goals", goals)
-      dump(out, "lemmas", lemma.lemmas.reverse)
+      dump(out, "lemmas", lemma.lemmas.distinct.reverse)
       // dump(out, "definitions", lemma.definitions.reverse.flatMap(_.rules))
       dump(out, "templates", lemma.templates)
       dump(out, "equations", lemma.equations)

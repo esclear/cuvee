@@ -13,6 +13,7 @@ class Config {
 class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
     extends Database {
 
+  var original: Set[Fun] = st.funs.values.toSet
   var lemmas: List[Rule] = Nil
   var promotion: List[(Fun, Query, Def, Rule)] = Nil
 
@@ -169,19 +170,59 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
 
   def generateLemmas() {
     import cuvee.egraph._
-    val g = new EGraph
 
-    for ((lhs, rhs) <- equations) {
-      g.merge(lhs, rhs)
-    }
+    val identity = lemmas
 
-    val rules = normalization ++ recovery
-    g.saturate(rules)
+    val equations_ =
+      for ((lhs, rhs) <- equations)
+        yield (lhs, rhs, True)
 
-    for ((c, i) <- g.classes.toList.zipWithIndex if c.nodes.size > 1) {
-      println("class " + i)
-      for (nd <- c.nodes)
-        println("  " + nd)
+    for (
+      (lhs, rhs, cond) <- equations_ ++ formulas;
+      (ty, su, lhs_) <- instances(lhs, recovery map (_.rhs))
+    ) {
+      val eq = Rule(lhs, rhs, cond)
+      println("lemmas for " + eq)
+
+      val g = new EGraph
+
+      val id = g.merge(lhs, rhs)
+      val ec = g.classes(id.find)
+      val ic = g.add(cond)
+
+      g.rebuild()
+
+      g.saturate(normalization ++ recovery)
+
+      // println("class $" + id.find.id)
+      // for (nd <- ec.nodes)
+      //   println(" " + nd)
+
+      def consider(nd: g.ENode) = nd match {
+        case g.EApp(Inst(fun, _), _) =>
+          original contains fun
+        case _ =>
+          true
+      }
+
+      val exprs = g.extract(id, consider)
+      val conds = g.extract(ic)
+
+      if (exprs.size > 1 && conds.nonEmpty)
+      println(
+        exprs.mkString("equiv(", ",", ") if " + conds.mkString(" \\/ "))
+      )
+
+      for (lhs :: rest <- exprs.toList.tails) {
+        for (rhs <- rest; cond <- conds) {
+          val lhs_ = trivial(lhs, identity)
+          val rhs_ = trivial(rhs, identity)
+          val cond_ = trivial(cond, identity)
+          val eq = Rule(lhs_, rhs_, cond_)
+          if (lhs_ != rhs_ && !(lemmas contains eq))
+            lemmas = eq :: lemmas
+        }
+      }
     }
   }
 
@@ -259,6 +300,7 @@ class Lemma(cmds: List[Cmd], defs: List[Def], st: State, cfg: Config)
   }
 
   def addOriginal(df: Def) {
+    original += df.fun
     normalize_(df, true)
   }
 

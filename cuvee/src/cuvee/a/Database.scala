@@ -103,6 +103,12 @@ class Database {
     Rewrite.rewrite(e, rws)
   }
 
+  def trivial(e: Expr, add: List[Rule]): Expr = {
+    val rules = add ++ (definitions flatMap (_.rules))
+    val rws = rules.groupBy(_.fun)
+    Rewrite.rewrite(e, rws)
+  }
+
   // put right hand side and guard of r into normal form wrt. the current state
   // def normalized(r: Rule): Rule = {
   //   val rws = normalization.groupBy(_.fun)
@@ -127,7 +133,10 @@ class Database {
   //   Def(f, cs_)
   // }
 
-  def instances(e: Expr, patterns: List[Expr]): List[(Map[Param, Type], Map[Var, Expr], Expr)] = {
+  def instances(
+      e: Expr,
+      patterns: List[Expr]
+  ): List[(Map[Param, Type], Map[Var, Expr], Expr)] = {
     val e_ = normalized(e)
 
     val res = for (p <- patterns) yield try {
@@ -143,7 +152,7 @@ class Database {
     // from non-fused functions, e.g.: length(map(y₀, y₁)) = length(y₁)
     val std = (Map[Param, Type](), Map[Var, Expr](), e_)
     std :: res.flatten
-    res.flatten
+    // res.flatten
   }
 
   // find equivalence class of e

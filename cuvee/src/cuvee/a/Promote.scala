@@ -52,7 +52,7 @@ object Promote {
       case l: Lit =>
         (l, Nil)
       case App(Inst(`f`, _), args) =>
-        var z = Expr.fresh("z", f.res)
+        var z = Expr.fresh("y", f.res)
         (z, List(z -> args))
       case App(inst, args) =>
         val (args_, xs) = abstracted(f, args)
@@ -68,6 +68,11 @@ object Promote {
       Nil
   }
 
+
+  def maybeAccumulator(df: Def): List[(Query, Def, Rule)] = {
+    ???
+  }
+
   // note: Def must not have non-static base cases
 
   // TODO: we *can* promote individual base cases, and should do so (e.g. contains),
@@ -80,7 +85,7 @@ object Promote {
       cs.isRecursive(f) && !cs.isTailRecursive(f)
     }
 
-    val isLinear = recursiveCases <= 1
+    val isLinear = recursiveCases == 1
 
     if (!isLinear) {
       // in this case, we could synthesize a function that aggregates all occurrences
@@ -126,7 +131,7 @@ object Promote {
               case x: Var if args contains x =>
                 val j = args indexOf x
 
-                val c = Fun("phi" + k, params, Nil, typ)
+                val c = Fun("phi", params, Nil, typ)
                 val c_ = Const(c, typ)
 
                 val lhs = c_
@@ -195,7 +200,7 @@ object Promote {
           case _       => None
         }: _*)
 
-        val q = Query(typ, b :: ⊕ :: φs, base, conds)
+        val q = Query(typ, b :: ⊕ :: φs, base, conds.distinct)
         val df_ = Def(f_, cases_)
 
         val ys =

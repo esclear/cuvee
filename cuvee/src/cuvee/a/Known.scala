@@ -217,10 +217,10 @@ object Known {
 
       ok = _fguard == _gguard && _fbody == _gbody
 
-      if (!ok && _fguard != _gguard)
-        println("; guards different: " + _fguard + " and " + _gguard)
-      if (!ok && _fbody != _gbody)
-        println("; bodies different: " + _fbody + " and " + _gbody)
+      // if (!ok && _fguard != _gguard)
+      //   println("; guards different: " + _fguard + " and " + _gguard)
+      // if (!ok && _fbody != _gbody)
+      //   println("; bodies different: " + _fbody + " and " + _gbody)
     }
 
     ok
