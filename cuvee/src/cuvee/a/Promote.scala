@@ -466,7 +466,7 @@ object Promote {
         val eqs =
           for (DefineFun(name, xs, res, rhs, false) <- res)
             yield {
-              val fun = st1 funs name
+              val fun = st1 funs (name, xs.length)
               val lhs = App(fun, xs)
               val eq = Rule(lhs, rhs)
               eq

@@ -155,7 +155,7 @@ object Def {
       body: Expr,
       st: State
   ): List[(Fun, C)] = {
-    val fun = st funs name
+    val fun = st funs (name, xs.length)
     val lhs = App(fun, xs)
     rw(xs, Nil, lhs, body, st)
   }
