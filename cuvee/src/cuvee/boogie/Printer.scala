@@ -19,13 +19,17 @@ object Printer extends cuvee.util.Printer {
     case f: Float    => List(f.toString)
     // Name
     case n: Name     => List(n.toLabel)
-    // Syntax (recursive call on the syntax' s-expression)
+    // Syntax (recursive call on the syntax' boogie-expression)
     case s: Syntax   => lines(s.bexpr)
     // String (= Id)
     case s: String   => List(s)
-    // Applications, either represented by a pair (a, b) or a list
+    // Syntax (recursive call on the syntax' s-expression)
+    case s: Syntax   => lines(s.bexpr)
+    // Pairs and lists consist of tokens and more syntax elements
+    // Call lines on the elements recursively
     case (a, b)      => lines(a) ++ lines(b)
     case xs: List[_] => xs flatMap lines
+    // Fall-through: Print nothing
     case _ => List()
   }
 }
