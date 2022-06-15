@@ -149,7 +149,7 @@ object Def {
     }
 
   def rw(
-      name: String,
+      name: Name,
       xs: List[Var],
       res: Type,
       body: Expr,

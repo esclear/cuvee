@@ -20,7 +20,7 @@ object Known {
     case (None, None)       => true // stable
     case (None, Some(_))    => false
     case (Some(_), None)    => true
-    case (Some(a), Some(b)) => a.name < b.name
+    case (Some(a), Some(b)) => a.name.toLabel < b.name.toLabel
   }
 
   def bind(

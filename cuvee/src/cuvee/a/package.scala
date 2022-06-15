@@ -8,13 +8,13 @@ import java.io.FileOutputStream
 import cuvee.sexpr.Syntax
 
 package object a {
-  def fused(index: Int)(name1: String, name2: String) = name1 + "_" + index + "_" + name2
-  def hoisted(name: String) = name + "_"
-  def removeunused(name: String) = name + "u"
-  def promoted(index: Int)(name: String) = name + "p" + index
-  def precondition(index: Int)(name: String) = name + "_pre" + index
-  def casevariant(index: Int)(name: String) = name + "_c" + index
-  def indexed(index: Int)(name: String) = name + index
+  def fused(index: Int)(name1: Name, name2: Name) = name1.toLabel + "_" + index + "_" + name2.toLabel
+  def hoisted(name: Name) = name.toLabel + "_"
+  def removeunused(name: Name) = name.toLabel + "u"
+  def promoted(index: Int)(name: Name) = name .toLabel+ "p" + index
+  def precondition(index: Int)(name: Name) = name.toLabel + "_pre" + index
+  def casevariant(index: Int)(name: Name) = name.toLabel + "_c" + index
+  def indexed(index: Int)(name: Name) = name.toLabel + index
 
   def read(file: String): (List[Def], List[Cmd], State) = {
     val (cmds, st) = parse(file)

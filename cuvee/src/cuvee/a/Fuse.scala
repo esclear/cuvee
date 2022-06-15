@@ -57,10 +57,10 @@ object Fuse {
 
       val xs =
         for ((t, i) <- f.args.zipWithIndex)
-          yield Var("x", t, Some(i))
+          yield Var(Name("x", Some(i)), t)
       val ys =
         for ((t, i) <- g.args.zipWithIndex)
-          yield Var("y", t, Some(i))
+          yield Var(Name("y", Some(i)), t)
 
       val lhs = App(f, xs updated (pos, App(g, ys)))
       val rhs = App(fg, xs patch (pos, ys, 1))
@@ -89,7 +89,7 @@ object Fuse {
       case C(gargs, gguard, x: Var) =>
         val fargs =
           for ((t, i) <- f.args.zipWithIndex)
-            yield Var("x", t, Some(i))
+            yield Var(Name("x", Some(i)), t)
         val args = fargs patch (pos, gargs, 1)
         val recs = fargs updated (pos, x)
         val guard = gguard
@@ -101,7 +101,7 @@ object Fuse {
       case C(gargs, gguard, App(Inst(`g`, _), grecs)) =>
         val fargs =
           for ((t, i) <- f.args.zipWithIndex)
-            yield Var("x", t, Some(i))
+            yield Var(Name("x", Some(i)), t)
         val args = fargs patch (pos, gargs, 1)
         val recs = fargs patch (pos, grecs, 1)
         val guard = gguard
