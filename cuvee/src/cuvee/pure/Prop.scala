@@ -42,7 +42,10 @@ object Atom {
 case class Disj(xs: List[Var], neg: List[Neg], pos: List[Pos])
     extends Neg
     with Expr.bind[Disj] {
+
   require(xs == xs.distinct)
+  // Invariant of the normal form:
+  require(xs.nonEmpty || neg.length >= 1 || pos.length >= 2)
 
   // def text = Printer.Disj(xs, neg, pos)
   def bound = xs.toSet
@@ -64,6 +67,11 @@ case class Disj(xs: List[Var], neg: List[Neg], pos: List[Pos])
 case class Conj(xs: List[Var], neg: List[Neg])
     extends Pos
     with Expr.bind[Conj] {
+
+  require(xs == xs.distinct)
+  // Invariant of the normal form:
+  require(xs.nonEmpty || neg.length >= 2)
+
   // def text = Printer.Conj(xs, neg, pos)
   def bound = xs.toSet
   def rename(a: Map[Var, Var], re: Map[Var, Var]) =
@@ -78,21 +86,6 @@ case class Conj(xs: List[Var], neg: List[Neg])
 }
 
 object Disj {
-
-//   def apply(xs: List[Var], neg: List[Expr], pos: List[Expr]) = {
-//     Simplify.forall(xs, Simplify.imp(Simplify.and(neg), Simplify.or(pos)))
-//   }
-
-  // def apply(xs: List[Var], neg: List[Expr], pos: List[Expr]) = {
-  //   Forall(xs, And(neg) ==> Or(pos))
-  // }
-
-  // def unapply(expr: Expr) = expr match {
-  //   case Forall(xs, Imp(And(neg), Or(pos))) => Some((xs, neg, pos))
-  //   case Imp(And(neg), Or(pos))             => Some((Nil, neg, pos))
-  //   case _                                  => None
-  // }
-
   def from(expr: Expr) =
     Disj.show(List(expr), Nil, Nil, Nil)
 
@@ -180,26 +173,6 @@ object Conj {
 
   def from(exprs: List[Expr]) =
     Conj.show(exprs, Nil, Nil)
-
-  // def apply(xs: List[Var], neg: List[Expr], pos: List[Expr]) = {
-  //   Simplify.exists(xs, Simplify.and(neg) && Simplify.and(pos map (Simplify.not(_))))
-  // }
-
-  // def apply(xs: List[Var], neg: List[Expr], pos: List[Expr]) = {
-  //   Exists(xs, And(neg ++ Not(pos)))
-  // }
-
-  // def unapply(expr: Expr) = expr match {
-  //   case Exists(xs, And(e)) =>
-  //     val (pos_, neg) = e partition { case Not(_) => true }
-  //     val pos = pos_ collect { case Not(e) => e }
-  //     Some((xs, neg, pos))
-  //   case And(e) =>
-  //     val (pos_, neg) = e partition { case Not(_) => true }
-  //     val pos = pos_ collect { case Not(e) => e }
-  //     Some((Nil, neg, pos))
-  //   case _ => None
-  // }
 
   def avoid(
       first: Neg,
