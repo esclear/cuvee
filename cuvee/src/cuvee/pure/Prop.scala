@@ -11,9 +11,44 @@ sealed trait Pos extends Prop {
   def subst(su: Map[Var, Expr]): Pos
 }
 
+object Pos {
+  def apply(xs: List[Var], neg: List[Neg]): Pos = {
+    val neg_ = neg filter (_ != Atom(True))
+
+    if (neg_.isEmpty)
+      return Atom(True)
+
+    if (neg_.contains(Atom(False)))
+      return Atom(False)
+
+    if (xs.isEmpty && neg_.length == 1)
+      return Atom(neg_.head.toExpr)
+
+    Conj(xs, neg_)
+  }
+}
+
 sealed trait Neg extends Prop {
   def rename(re: Map[Var, Var]): Neg
   def subst(su: Map[Var, Expr]): Neg
+}
+
+object Neg {
+  def apply(xs: List[Var], neg: List[Neg], pos: List[Pos]): Neg = {
+    val neg_ = neg filter (_ != Atom(True))
+    val pos_ = pos filter (_ != Atom(False))
+
+    if (neg_.contains(Atom(False)) || pos_.contains(Atom(True)))
+      return Atom(True)
+
+    if (neg_.isEmpty && pos_.isEmpty)
+      return Atom(False)
+
+    if (xs.isEmpty && pos_.length == 1)
+      return Atom(pos_.head.toExpr)
+
+    Disj(xs, neg_, pos_)
+  }
 }
 
 // if one decides a neg == False or a pos == True
@@ -135,7 +170,7 @@ object Disj {
   ): Neg = {
     todo match {
       case Nil =>
-        Disj(xs, neg, pos)
+        Neg(xs, neg, pos)
       case False :: rest =>
         show(rest, xs, neg, pos)
       case True :: rest =>
@@ -246,7 +281,7 @@ object Conj {
       case Nil if neg.isEmpty =>
         Atom(True)
       case Nil =>
-        Conj(xs, neg)
+        Pos(xs, neg)
       case True :: rest =>
         show(rest, xs, neg)
       case False :: rest =>

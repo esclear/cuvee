@@ -56,7 +56,7 @@ case class Induction(variable: Var, cases: List[(Expr, Tactic)])
 
     // Generate a copy of prop without a top level quantor quantifying the induction `variable`
     val prop_ = prop match {
-      case Disj(xs, neg, pos) => Disj(xs.filterNot(_ == variable), neg, pos)
+      case Disj(xs, neg, pos) => Neg(xs.filterNot(_ == variable), neg, pos)
       case _ => cuvee.error("Only Disj supported in induction tactic")
     }
 
@@ -78,11 +78,16 @@ case class Induction(variable: Var, cases: List[(Expr, Tactic)])
 
         val su = Map(variable -> App(inst, args))
 
-        val goal = Disj(
-          prop_.xs ++ args,
-          prop_.neg.map(_.subst(su)) ++ hyps,
-          prop_.pos.map(_.subst(su))
-        )
+        val goal = prop_ match {
+          case Disj(xs_, neg_, pos_) =>
+            Neg(
+              xs_ ++ args,
+              neg_.map(_.subst(su)) ++ hyps,
+              pos_.map(_.subst(su))
+            )
+          case pos@Atom(_) =>
+            Neg(args, hyps, List(pos.subst(su)))
+        }
 
         (goal, con_tactics.get(inst) map (_._2))
       })
