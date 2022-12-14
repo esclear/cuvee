@@ -11,7 +11,7 @@ import cuvee.util.Rating
 import cuvee.util.Proving
 
 /** Represents an instance of a tactic, possibly with arguments.
-  * 
+  *
   * An instance of this trait may be applied to a proof obligation.
   */
 trait Tactic {
@@ -279,8 +279,46 @@ object Unfold
     extends ((Name, Option[List[BigInt]], Option[Tactic]) => Unfold)
     with Suggest {
 
-  // TODO: Consider suggesting unfolding of defined functions?
-  def suggest(state: State, goal: Prop): List[Tactic] = Nil
+  /** Suggest to unfold predicates.
+    *
+    * This function produces suggestions for unfolding predicates. If a
+    * predicate occurs more than once in the goal,
+    *
+    * @param state
+    * @param goal
+    * @return
+    */
+  def suggest(state: State, goal: Prop): List[Tactic] = {
+    // First, find all unfoldable functions in the goal
+    val expr = goal.toExpr
+
+    var functions = collection.mutable.Map[Name, Int]()
+
+    expr.topdown {
+      case app @ App(inst, args)
+          if state.fundefs.contains((inst.fun.name, args.length)) => {
+        val name = inst.fun.name
+        val (_, body) = state.fundefs((inst.fun.name, args.length))
+
+        // In case of a recursive definition, bail out
+        if (!body.funs.contains(inst.fun))
+          functions.update(name, functions.getOrElse(name, 0) + 1)
+
+        app
+      }
+      case e => e
+    }
+
+    // Generate the tactic suggestions for the unfoldable functions
+    functions.flatMap { case (fn, cnt) =>
+      if (cnt == 1)
+        List(Unfold(fn, Some(List(1)), None))
+      else
+        (1 to cnt).map(i => 
+          Unfold(fn, Some(List(i)), None)
+        ) :+ Unfold(fn, None, None)
+    }.toList
+  }
 
 }
 
@@ -289,7 +327,7 @@ case class Unfold(
     places: Option[List[BigInt]],
     cont: Option[Tactic]
 ) extends Tactic {
-  require(!places.isDefined || places.get.forall(i => 1 <= i))
+  require(places.isEmpty || places.get.min >= 1)
 
   def apply(state: State, goal: Prop) = {
     val expr = goal.toExpr
