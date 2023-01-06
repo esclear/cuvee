@@ -471,3 +471,21 @@ object Conj {
   }
 
 }
+
+/** A predicate that has been unfolded
+  *
+  * @param app  Contains the predicate application that was unfolded.
+  * @param body What remains to prove of the predicate, in its context
+  */
+case class Pred(app: App, body: Prop) extends Pos with Neg {
+  require(body != Atom.t && body != Atom.f)
+
+  def bound = Set()
+  def toExpr = app
+  def rename(re: Map[Var, Var]) =
+    Pred(app rename re, body rename re)
+  def subst(su: Map[Var, Expr]) =
+    Pred(app subst su, body subst su)
+  def sexpr = app.sexpr
+  def bexpr = List(app.bexpr.mkString(""), "where", body.bexpr.mkString(" "))
+}

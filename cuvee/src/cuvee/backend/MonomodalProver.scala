@@ -33,6 +33,10 @@ class MonomodalProver(solver: Solver) extends Prover {
       }
   }
 
+  def prove(pred: Pred): Pred = pred match {
+    case Pred(app, body) => Pred(app, prove(body))
+  }
+
   def prove(pos: Pos): Pos = pos match {
     case atom: Atom =>
       prove(atom)
@@ -44,6 +48,9 @@ class MonomodalProver(solver: Solver) extends Prover {
     case conj: Conj =>
       val asAtom = Atom(conj.toExpr)
       Conj.from(prove(asAtom).toExpr)
+
+    case pred: Pred =>
+      prove(pred)
   }
 
   def prove(neg: Neg): Neg = neg match {
@@ -84,6 +91,9 @@ class MonomodalProver(solver: Solver) extends Prover {
           Simplify.disj_(xs, neg_ map (_ rename re_), pos__ map (_ rename re_))
         }
       }
+
+    case pred: Pred =>
+      prove(pred)
   }
 
   def disj(suc: List[Pos]): List[Pos] = suc match {

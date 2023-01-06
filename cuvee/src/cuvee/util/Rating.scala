@@ -20,6 +20,8 @@ object Rating {
             2 + 4 * xs.length + 3 * (neg map complexity).sum
         case Disj(xs, neg, pos) =>
             4 + 4 * xs.length - 3 * (neg map complexity).sum + 3 * (pos map complexity).sum
+        // For predicates, look at their remaining body
+        case Pred(_, body) => complexity(body)
     }
 
     /** Complexity heuristic for atomic propositions
@@ -64,6 +66,8 @@ object Rating {
         // Conjunction: 3 (conjunction, implication, disjunction) + #vars + sum of pos/neg arguments' sizes
         case Disj(xs, neg, pos) =>
             3 + xs.length + (neg map size).sum + (pos map size).sum
+        // For predicates, look at their remaining body
+        case Pred(_, body) => complexity(body)
     }
 
     /** Complexity heuristic for atomic propositions

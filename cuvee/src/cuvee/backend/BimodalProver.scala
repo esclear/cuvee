@@ -66,6 +66,9 @@ class BimodalProver(solver: Solver) extends Prover {
       } else {
         res
       }
+
+    case Pred(app, body) =>
+      Pred(app, prove(body, expect))
   }
 
   def prove(neg: Neg, expect: Boolean): Neg = neg match {
@@ -114,6 +117,9 @@ class BimodalProver(solver: Solver) extends Prover {
           res
         }
       }
+
+    case Pred(app, body) =>
+      Pred(app, prove(body, expect))
   }
 
   def disj(suc: List[Pos], expect: Boolean): List[Pos] = suc match {
