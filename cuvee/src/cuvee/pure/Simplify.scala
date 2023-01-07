@@ -49,7 +49,7 @@ object Simplify {
       atom(simplify(expr, rules), model)
     case Disj(xs, neg, pos) =>
       disj(xs, neg map (simplify(_, rules)), pos map (simplify(_, rules)))
-    case Pred(app, body)   => simplify(prop, rules)
+    case Pred(app, body)   => Pred(app, simplify(body, rules))
   }
 
   def simplify(exprs: List[Expr], rules: Map[Fun, List[Rule]]): List[Expr] = {
@@ -133,15 +133,14 @@ object Simplify {
   }
 
   def conj(xs: List[Var], neg: List[Neg]): Pos = {
-    val neg_ = neg map (_.toExpr)
-    Conj.from(xs, neg_)
+    Conj.from(xs, neg)
   }
 
   def prop_(p: Prop): Prop = p match {
     case Atom(expr, cex)    => atom(expr, cex)
     case Disj(xs, neg, pos) => disj_(xs, neg, pos)
     case Conj(xs, neg)      => conj_(xs, neg)
-    case Pred(app, body)    => Pred(app, prop_(body))
+    case Pred(app, body)    => pred_(app, prop_(body))
   }
 
   def disj_(xs: List[Var], neg: List[Neg], pos: List[Pos]): Neg = {
@@ -166,5 +165,11 @@ object Simplify {
       return Atom.f
 
     Conj(xs, neg_)
+  }
+
+  def pred_(app: App, prop: Prop): Prop = prop match {
+    case Atom.t => Atom.t
+    case Atom.f => Atom.f
+    case _      => Pred(app, prop)
   }
 }
