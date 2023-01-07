@@ -301,6 +301,9 @@ object Disj {
         val Conj(zs, neg_) = conj.rename(re)
 
         assume(neg_ ++ rest, todo, xs ++ zs, neg, pos)
+
+      case (pred: Pred) :: rest =>
+        assume(rest, todo, xs, neg ++ List(pred), pos)
     }
   }
 
@@ -334,6 +337,9 @@ object Disj {
         val Disj(zs, neg_, pos_) = disj.rename(re)
 
         assume(neg_, pos_ ++ rest, zs ++ xs, neg, pos)
+
+      case (pred: Pred) :: rest =>
+        show(rest, xs, neg, pos ++ List(pred))
     }
   }
 }
@@ -505,7 +511,7 @@ object Conj {
       case Atom.t :: rest =>
         Atom.f
 
-      case (phi: Atom) :: rest =>
+      case (phi @ (_: Atom | _: Pred)) :: rest =>
         // !phi = phi ==> False = Disj([], [phi], [])
         val nphi = Disj.from(Nil, List(phi), Nil)
         avoid(rest, todo, xs, neg ++ List(nphi))
@@ -553,8 +559,10 @@ object Conj {
         show(rest, xs, neg)
       case Atom.f :: rest =>
         Atom.f
-      case (atom: Atom) :: rest =>
-        show(rest, xs, neg ++ List(atom))
+      case (phi: Atom) :: rest =>
+        show(rest, xs, neg ++ List(phi))
+      case (phi: Pred) :: rest =>
+        show(rest, xs, neg ++ List(phi))
 
       case (disj: Disj) :: rest =>
         show(disj, rest, xs, neg)
