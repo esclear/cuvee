@@ -593,5 +593,5 @@ case class Pred(app: App, body: Prop) extends Pos with Neg {
   def subst(su: Map[Var, Expr]) =
     Pred(app subst su, body subst su)
   def sexpr = app.sexpr
-  def bexpr = List(app.bexpr.mkString(""), "where", body.bexpr.mkString(" "))
+  def bexpr = List(app.bexpr.mkString("") + " where") ++ body.bexpr.map("  " + _)
 }
