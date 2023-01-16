@@ -8,20 +8,6 @@ sealed trait Prop extends sexpr.Syntax with boogie.Syntax {
   def toExpr: Expr
   def rename(re: Map[Var, Var]): Prop
   def subst(su: Map[Var, Expr]): Prop
-
-  def mapAtoms(f: Atom => Prop): Prop = {
-    this match {
-      case atom @ Atom(_, _) => f(atom)
-      case Disj(xs, neg, pos) =>
-        // I'm unhappy about these casts, but this seemed the most straight-forward way.
-        // Note that the prop polarities (pos/neg) are maintained by this mapAtoms, so the casts are safe.
-        Disj(xs, neg map (_.mapAtoms(f).asInstanceOf[Neg]), pos map (_.mapAtoms(f).asInstanceOf[Pos]))
-      case Conj(xs, neg) =>
-        Conj(xs, neg map (_.mapAtoms(f).asInstanceOf[Neg]))
-      case Pred(app, body) =>
-        Pred(app, body.mapAtoms(f))
-    }
-  }
 }
 
 object Prop {

@@ -11,7 +11,7 @@ import cuvee.util.Rating
 import cuvee.util.Proving
 
 /** Represents an instance of a tactic, possibly with arguments.
-  * 
+  *
   * An instance of this trait may be applied to a proof obligation.
   */
 trait Tactic {
@@ -307,25 +307,26 @@ object Unfold
     */
   def suggest(state: State, goal: Prop): List[Tactic] = {
     // First, find all unfoldable functions in the goal
-    val expr = goal.toExpr
-
     var functions = collection.mutable.Map[(Name, Int), Int]()
 
-    expr.topdown {
-      case app @ App(inst, args)
-          if state.fundefs.contains((inst.fun.name, args.length)) => {
-        val name = inst.fun.name
-        val arity = args.length
-        val (_, body) = state.fundefs((name, arity))
+    mapPropAtoms(goal, {case atom @ Atom(expr, cex) => 
+      expr.topdown {
+        case app @ App(inst, args)
+            if state.fundefs.contains((inst.fun.name, args.length)) => {
+          val name = inst.fun.name
+          val arity = args.length
+          val (_, body) = state.fundefs((name, arity))
 
-        // In case of a recursive definition, bail out
-        if (!body.funs.contains(inst.fun))
-          functions.update((name, arity), functions.getOrElse((name, arity), 0) + 1)
+          // In case of a recursive definition, bail out
+          if (!body.funs.contains(inst.fun))
+            functions.update((name, arity), functions.getOrElse((name, arity), 0) + 1)
 
-        app
+          app
+        }
+        case e => e
       }
-      case e => e
-    }
+      atom
+    })
 
     // Generate the tactic suggestions for the unfoldable functions
     functions.flatMap { case (fn, cnt) =>
@@ -351,7 +352,24 @@ object Unfold
     val suggestions = suggest(state, goal) map (t => t.asInstanceOf[Unfold])
     // At this point we know that the function exists, so we can request the definition from the state
     // and filter for unfodings of predicates
-    suggestions filter (t => state.funs(t.target).res == Sort.bool)
+    suggestions filter (t => isPredicate(state, t.target))
+  }
+
+  def isPredicate(state: State, function: (Name, Int)): Boolean = {
+    state.funs(function).res == Sort.bool
+  }
+
+  def mapPropAtoms(prop: Prop, atom_fun: Atom => Prop): Prop = prop match {
+    case atom @ Atom(expr, cex) => atom_fun(atom)
+    case pred @ Pred(app, body) => Pred(app, mapPropAtoms(body, atom_fun))
+    case Conj(xs, neg) =>
+      Conj(xs, neg map (mapPropAtoms(_, atom_fun).asInstanceOf[Neg]))
+    case Disj(xs, neg, pos) =>
+      Disj(
+        xs,
+        neg map (mapPropAtoms(_, atom_fun).asInstanceOf[Neg]),
+        pos map (mapPropAtoms(_, atom_fun).asInstanceOf[Pos])
+      )
   }
 }
 
@@ -363,27 +381,41 @@ case class Unfold(
   require(!places.isDefined || places.get.forall(i => 1 <= i))
 
   def apply(state: State, goal: Prop) = {
-    val expr = goal.toExpr
-
     var i = 0
 
-    val goal_ = expr.topdown {
-      case e @ App(inst, args) if (inst.fun.name, args.length) == target =>
+    val result = Unfold.mapPropAtoms(goal, {
+      case atom @ Atom(app @ App(inst, args), cex)
+          if (inst.fun.name, args.length) == target =>
         i += 1
 
         if (places.isDefined && !places.get.contains(i)) {
-          e
+          atom
         } else {
           val (params, body) = state.fundefs(target)
           val su = params.zip(args).toMap
-          body.subst(su)
+
+          Pred(app, Prop.from(body.subst(su)))
         }
 
-      case e =>
-        e
-    }
+      case Atom(expr, cex) =>
+        val expr_ = expr.topdown {
+          case e @ App(inst, args) if (inst.fun.name, args.length) == target =>
+            i += 1
 
-    List((Disj.from(goal_), cont))
+            if (places.isDefined && !places.get.contains(i)) {
+              e
+            } else {
+              val (params, body) = state.fundefs(target)
+              val su = params.zip(args).toMap
+              body.subst(su)
+            }
+          case e => e
+        }
+
+        Atom(expr_, cex)
+    })
+
+    List((result, cont))
   }
 
   override def makesProgress(state: State, goal: Prop)(implicit prover: Prover): Option[Int] = {

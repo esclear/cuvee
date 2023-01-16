@@ -41,7 +41,7 @@ object Simplify {
   def simplify(prop: Pos, rules: Map[Fun, List[Rule]]): Pos = prop match {
     case Atom(expr, model) => atom(simplify(expr, rules), model)
     case Conj(xs, neg)     => conj(xs, neg map (simplify(_, rules)))
-    case Pred(app, body)   => simplify(prop, rules)
+    case Pred(app, body)   => Pred(app, simplify(body, rules))
   }
 
   def simplify(prop: Neg, rules: Map[Fun, List[Rule]]): Neg = prop match {
